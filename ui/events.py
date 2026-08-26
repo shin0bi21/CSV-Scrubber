@@ -45,10 +45,9 @@ class AppEvents:
         shell.set_nav(self, "review")
         views.render_complete(self)
 
-    def show_rules(self):
-        self.mode = "rules"
-        shell.set_nav(self, "rules")
-        views.render_rules(self)
+    def show_settings(self):
+        shell.set_nav(self, "settings")
+        views.render_settings(self)
 
     # ========================================================================
     # Input and scan events
@@ -200,16 +199,16 @@ class AppEvents:
             review = int(review)
             common_token_min_documents = int(common_token_min_documents)
         except (AttributeError, tk.TclError, ValueError):
-            messagebox.showwarning("Invalid ruleset", "Thresholds must be whole numbers.")
+            messagebox.showwarning("Invalid settings", "Thresholds must be whole numbers.")
             return False
         if review < 60 or review > 100 or common_token_min_documents < 1:
-            messagebox.showwarning("Invalid ruleset", "Review threshold must be 60–100 and common-token minimum rows must be at least 1.")
+            messagebox.showwarning("Invalid settings", "Review threshold must be 60–100 and common-token minimum rows must be at least 1.")
             return False
         self.rules.review_threshold = review
         self.rules.common_token_min_documents = common_token_min_documents
         for attr, var in self.norm_vars.items():
             setattr(self.rules, attr, var.get())
-        messagebox.showinfo("Rules saved", "The fuzzy ruleset is active for new scans.")
+        messagebox.showinfo("Settings saved", "The matching settings are active for new scans.")
         return True
 
     def _apply_token_weight_inputs(self):

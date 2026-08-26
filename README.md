@@ -48,13 +48,13 @@ The application follows the same high-level flow for every scan type:
 1. **Setup** — choose Single file or Multi-file, load CSVs, and select match/reference columns.
 2. **Analyze** — inspect common tokens and adjust their influence before scanning.
 3. **Review** — resolve the groups found by the scan.
-4. **Ruleset** — configure matching behavior before scanning.
+4. **Settings** — configure matching behavior before scanning.
 
 Single-file and multi-file modes share the same column-selection UI. The picker receives the available columns, current selections, and a role (`match` or `reference`); the event layer maps that role to the appropriate engine field.
 
-## Ruleset
+## Settings
 
-The Ruleset screen deliberately does not select columns or review common tokens. It controls only:
+The Settings screen deliberately does not select columns or review common tokens. It controls only:
 
 - algorithm selection and description,
 - review threshold,
