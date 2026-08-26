@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import customtkinter as ctk
+
 from engine import MatchGroup, RecordRef
 
 from . import widgets
@@ -41,21 +43,35 @@ def _render_column_picker(app, frame, source, row: int, role: str):
 
 # ============================================================================
 # Setup view
-# Purpose: collect source files, select match/reference columns, and start a scan.
-# Layout: page -> source cards -> match/reference choosers -> scan action.
-# Events: app.load_source() and app.start_scan().
 # ============================================================================
 def render_workspace(app, mode: str):
     """Render Setup and its selected single-file or multi-file mode."""
     app.crumb.configure(text=f"Setup  ›  {'Single file' if mode == 'single' else 'Multi-file'}")
+    outer = widgets.page(app, "Setup", "Choose the files and columns for this duplicate scan.")
 
-    outer = widgets.page(app, "Setup", "Set up a single-file or multi-file duplicate scan.")
-    mode_bar = tk.Frame(outer, bg=widgets.COLORS["bg"])
-    mode_bar.pack(fill="x", pady=(0, 16))
-    tk.Label(mode_bar, text="SCAN MODE", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(side="left", padx=(0, 12))
-    for option, label in (("single", "Single file"), ("multi", "Multi-file")):
-        style = "primary_small" if option == mode else "secondary"
-        widgets.button(mode_bar, label, lambda selected=option: app.show_workspace(selected), style, padx=13, pady=7).pack(side="left", padx=(0, 8))
+    mode_bar = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+    mode_bar.pack(fill="x", pady=(0, 18))
+    ctk.CTkLabel(mode_bar, text="SCAN MODE", text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w").pack(side="left", padx=(0, 14))
+
+    def select_mode(label: str):
+        app.show_workspace("single" if label == "Single file" else "multi")
+
+    mode_control = ctk.CTkSegmentedButton(
+        mode_bar,
+        values=["Single file", "Multi-file"],
+        command=select_mode,
+        fg_color=widgets.COLORS["panel_alt"],
+        selected_color=widgets.COLORS["green_light"],
+        selected_hover_color=widgets.COLORS["truth_header"],
+        unselected_color=widgets.COLORS["paper"],
+        unselected_hover_color=widgets.COLORS["panel_subtle"],
+        text_color=widgets.COLORS["ink"],
+        font=widgets.FONTS["button_small"],
+        height=38,
+        corner_radius=9,
+    )
+    mode_control.pack(side="left")
+    mode_control.set("Single file" if mode == "single" else "Multi-file")
 
     if mode == "single":
         _render_single_import(app, outer)
@@ -64,10 +80,9 @@ def render_workspace(app, mode: str):
 
 
 def _render_single_import(app, outer):
-    tk.Label(outer, text="Find duplicates in one CSV", bg=widgets.COLORS["bg"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).pack(anchor="w", pady=(0, 8))
+    ctk.CTkLabel(outer, text="Find duplicates in one CSV", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", pady=(0, 10))
     frame = widgets.card(outer)
     frame.pack_configure(fill="both", expand=True)
-
     widgets.source_picker(app, frame, app.single, "CSV file", 0)
     _render_column_picker(app, frame, app.single, 1, "match")
     _render_column_picker(app, frame, app.single, 2, "reference")
@@ -76,10 +91,9 @@ def _render_single_import(app, outer):
 
 
 def _render_multi_import(app, outer):
-    tk.Label(outer, text="Reconcile two CSV sources", bg=widgets.COLORS["bg"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).pack(anchor="w", pady=(0, 8))
-    sources = tk.Frame(outer, bg=widgets.COLORS["bg"])
+    ctk.CTkLabel(outer, text="Reconcile two CSV sources", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", pady=(0, 10))
+    sources = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
     sources.pack(fill="x")
-
     _render_source_card(app, sources, app.truth, "SOURCE OF TRUTH", "Truth CSV", widgets.COLORS["truth_header"], (0, 8))
     _render_source_card(app, sources, app.dependent, "DEPENDENT SOURCE", "Dependent CSV", widgets.COLORS["panel_alt"], (8, 0))
 
@@ -90,18 +104,16 @@ def _render_multi_import(app, outer):
 
 
 def _render_scan_action(parent, command, row: int):
-    """Place the primary scan action at the bottom-right of a workspace card."""
-    actions = tk.Frame(parent, bg=widgets.COLORS["paper"])
-    actions.grid(row=row, column=0, columnspan=3, sticky="ew", padx=20, pady=(16, 20))
-    widgets.button(actions, "Scan", command, "primary", padx=20, pady=10).pack(side="right")
+    actions = ctk.CTkFrame(parent, fg_color="transparent", corner_radius=0)
+    actions.grid(row=row, column=0, columnspan=3, sticky="ew", padx=22, pady=(16, 22))
+    widgets.button(actions, "Scan for duplicates", command, "primary").pack(side="right")
 
 
 def _render_source_card(app, parent, source, section_text, file_label, header_bg, padding):
     frame = widgets.card(parent)
     frame.pack_forget()
     frame.pack(side="left", fill="both", expand=True, padx=padding)
-
-    widgets.section_label(frame, section_text, header_bg, widgets.COLORS["green"] if source.role == "truth" else widgets.COLORS["muted"], row=0, column=0, columnspan=3, sticky="w", padx=20, pady=(18, 8))
+    widgets.section_label(frame, section_text, header_bg, widgets.COLORS["green"] if source.role == "truth" else widgets.COLORS["muted"], row=0, column=0, columnspan=3, sticky="w", padx=22, pady=(20, 8))
     widgets.source_picker(app, frame, source, file_label, 1)
     _render_column_picker(app, frame, source, 2, "match")
     _render_column_picker(app, frame, source, 3, "reference")
@@ -109,28 +121,23 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 
 # ============================================================================
 # Review view
-# Purpose: present one duplicate group and collect keep/merge decisions.
-# Layout: group header -> reason bar -> scrollable record grid -> actions.
-# Widgets: page(), scrollable_frame(), record headers, field radio buttons.
-# Events: app.resolve().
 # ============================================================================
 def render_review(app):
     """Render the current duplicate group for manual resolution."""
     app.crumb.configure(text=f"Review  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
-    outer = widgets.page(app, "Review", "Select one or more rows to keep, or choose field values to merge.")
+    outer = widgets.page(app, "Review", "Select rows to keep, or choose field values for a merged record.")
 
     if not app.groups:
         frame = widgets.card(outer)
-        tk.Label(frame, text="No review is ready yet.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["ink"], font=widgets.FONTS["body_large"]).pack(anchor="w", padx=20, pady=(20, 6))
-        tk.Label(frame, text="Run a scan from Setup first.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"]).pack(anchor="w", padx=20, pady=(0, 16))
-        widgets.button(frame, "Back to Setup", app.show_workspace, "secondary", padx=14, pady=8).pack(anchor="w", padx=20, pady=(0, 20))
+        ctk.CTkLabel(frame, text="No review is ready yet", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", padx=22, pady=(22, 6))
+        ctk.CTkLabel(frame, text="Run a scan from Setup first.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=22, pady=(0, 18))
+        widgets.button(frame, "Back to Setup", app.show_workspace, "secondary").pack(anchor="w", padx=22, pady=(0, 22))
         return
 
     group: MatchGroup = app.groups[app.group_index]
     _build_group_header(app, outer, group)
-    review_frame = tk.Frame(outer, bg=widgets.COLORS["paper"], highlightbackground=widgets.COLORS["line"], highlightthickness=1)
+    review_frame = ctk.CTkFrame(outer, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=14)
     review_frame.pack(fill="both", expand=True)
-
     _build_reason_bar(review_frame, group)
     table = widgets.scrollable_frame(review_frame)
     _build_record_columns(app, table, group)
@@ -139,43 +146,40 @@ def render_review(app):
 
 
 def _build_group_header(app, outer, group: MatchGroup):
-    top = tk.Frame(outer, bg=widgets.COLORS["bg"])
-    top.pack(fill="x", pady=(0, 10))
-    tk.Label(top, text=f"GROUP {app.group_index + 1} OF {len(app.groups)}", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(side="left")
-
-    tk.Label(top, text=f"{group.score:.0f}% MATCH", bg=widgets.COLORS["panel_subtle"], fg=widgets.COLORS["muted"], font=widgets.FONTS["button_small"], padx=10, pady=5).pack(side="right")
+    top = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+    top.pack(fill="x", pady=(0, 12))
+    ctk.CTkLabel(top, text=f"GROUP {app.group_index + 1} OF {len(app.groups)}", text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(side="left")
+    ctk.CTkLabel(top, text=f"{group.score:.0f}% MATCH", fg_color=widgets.COLORS["green_light"], text_color=widgets.COLORS["green"], font=widgets.FONTS["button_small"], width=110, height=32, corner_radius=8).pack(side="right")
 
 
 def _build_reason_bar(parent, group: MatchGroup):
-    reason = tk.Frame(parent, bg=widgets.COLORS["panel_subtle"], height=38)
-    reason.pack(fill="x")
+    reason = ctk.CTkFrame(parent, fg_color=widgets.COLORS["panel_subtle"], height=44, corner_radius=13)
+    reason.pack(fill="x", padx=2, pady=2)
     reason.pack_propagate(False)
-
-    tk.Label(reason, text="●  " + "  •  ".join(group.reasons), bg=widgets.COLORS["panel_subtle"], fg=widgets.COLORS["green"], font=widgets.FONTS["body"]).pack(side="left", padx=16, pady=10)
+    ctk.CTkLabel(reason, text="●  " + "  •  ".join(group.reasons), text_color=widgets.COLORS["green"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=18, pady=11)
 
 
 def _build_record_columns(app, table, group: MatchGroup):
-    table.grid_columnconfigure(0, minsize=140)
+    table.grid_columnconfigure(0, minsize=150)
     app.keep_vars = {}
     app.field_widgets = {}
     preferred_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
 
     for column, ref in enumerate(group.records, 1):
-        table.grid_columnconfigure(column, weight=1, minsize=220)
+        table.grid_columnconfigure(column, weight=1, minsize=230)
         keep = tk.BooleanVar(value=ref == preferred_ref)
         app.keep_vars[ref] = keep
-        header = tk.Frame(table, bg=widgets.COLORS["panel_header"], highlightbackground=widgets.COLORS["line"], highlightthickness=1)
+        header = ctk.CTkFrame(table, fg_color=widgets.COLORS["panel_header"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=0)
         header.grid(row=0, column=column, sticky="nsew")
-        tk.Checkbutton(header, variable=keep, text=f"ROW {ref.index + 2}", bg=widgets.COLORS["panel_header"], fg=widgets.COLORS["green"], activebackground=widgets.COLORS["panel_header"], selectcolor=widgets.COLORS["paper"], font=widgets.FONTS["section"]).pack(anchor="w", padx=10, pady=10)
+        ctk.CTkCheckBox(header, text=f"ROW {ref.index + 2}", variable=keep, fg_color=widgets.COLORS["green"], hover_color=widgets.COLORS["green_hover"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["green"], font=widgets.FONTS["section"], corner_radius=6).pack(anchor="w", padx=12, pady=12)
 
 
 def _build_field_rows(app, table, group: MatchGroup):
     app.field_vars = {}
     headers = app._headers_for_review(group)
     default_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
-
     for row, field in enumerate(headers, 1):
-        tk.Label(table, text=field, bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", padx=12).grid(row=row, column=0, sticky="nsew", ipady=10)
+        ctk.CTkLabel(table, text=field, fg_color=widgets.COLORS["paper"], text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", corner_radius=0).grid(row=row, column=0, sticky="nsew", padx=12, pady=12)
         preferred = _preferred_ref(app, group, field, default_ref)
         var = tk.StringVar(value=f"{preferred.source}:{preferred.index}")
         app.field_vars[field] = var
@@ -191,8 +195,23 @@ def _preferred_ref(app, group, field: str, default_ref: RecordRef) -> RecordRef:
 def _build_field_values(app, table, group, row: int, field: str, variable: tk.StringVar):
     for column, ref in enumerate(group.records, 1):
         value = app._row_for(ref).get(field, "")
-        cell = tk.Radiobutton(table, text=value or "—", variable=variable, value=f"{ref.source}:{ref.index}", bg=widgets.COLORS["paper"], activebackground=widgets.COLORS["field_active"], selectcolor=widgets.COLORS["green_light"], fg=widgets.COLORS["ink"], font=widgets.FONTS["body"], anchor="w", justify="left", wraplength=250, padx=10, pady=9)
-        cell.grid(row=row, column=column, sticky="nsew")
+        bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
+        cell_frame = ctk.CTkFrame(table, fg_color=bg, corner_radius=0)
+        cell_frame.grid(row=row, column=column, sticky="nsew")
+        cell = ctk.CTkRadioButton(
+            cell_frame,
+            text=value or "—",
+            variable=variable,
+            value=f"{ref.source}:{ref.index}",
+            fg_color=widgets.COLORS["green"],
+            hover_color=widgets.COLORS["green_hover"],
+            border_color=widgets.COLORS["line"],
+            text_color=widgets.COLORS["ink"],
+            text_color_disabled=widgets.COLORS["muted"],
+            font=widgets.FONTS["body"],
+            width=210,
+        )
+        cell.pack(fill="both", expand=True, padx=12, pady=11)
         app.field_widgets.setdefault(ref, []).append(cell)
 
 
@@ -203,7 +222,6 @@ def _refresh_field_choices(app):
         state = "normal" if ref in selected_refs else "disabled"
         for cell in cells:
             cell.configure(state=state)
-
     if not selected:
         return
     preferred = next((ref for ref in selected if ref.source == "truth"), selected[0])
@@ -213,7 +231,7 @@ def _refresh_field_choices(app):
         if current in selected_refs:
             continue
         fallback = next((ref for ref in selected if app._row_for(ref).get(field, "")), preferred)
-        variable.set(fallback.source + ":" + str(fallback.index))
+        variable.set(f"{fallback.source}:{fallback.index}")
 
 
 def _update_selection_status(app):
@@ -221,82 +239,75 @@ def _update_selection_status(app):
     if selected_count == 0:
         message = "No rows selected."
     elif selected_count == 1:
-        message = "1 row selected. Merge uses the field choices from that row."
+        message = "1 row selected. Merge uses values from that row."
     else:
-        message = f"{selected_count} rows selected. Keep retains all; Merge combines their field choices into one row."
+        message = f"{selected_count} rows selected. Keep retains all; Merge combines their field choices."
     app.selection_status_var.set(message)
 
 
 def _build_review_actions(app, outer):
-    actions = tk.Frame(outer, bg=widgets.COLORS["bg"])
-    actions.pack(fill="x", pady=(14, 0))
-
+    actions = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+    actions.pack(fill="x", pady=(16, 0))
     app.selection_status_var = tk.StringVar()
-    tk.Label(actions, textvariable=app.selection_status_var, bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").pack(side="left")
+    ctk.CTkLabel(actions, textvariable=app.selection_status_var, text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").pack(side="left", padx=(0, 12))
     for variable in app.keep_vars.values():
         variable.trace_add("write", lambda *_args: (_refresh_field_choices(app), _update_selection_status(app)))
     _refresh_field_choices(app)
     _update_selection_status(app)
-
     widgets.button(actions, "Not duplicates", lambda: app.resolve("not_duplicate"), "ghost").pack(side="left")
-    widgets.button(actions, "Keep selected rows", lambda: app.resolve("keep"), "secondary", padx=15, pady=9).pack(side="right", padx=(9, 0))
-    widgets.button(actions, "Merge selected rows", lambda: app.resolve("merge"), "primary_small", padx=16, pady=10).pack(side="right")
+    widgets.button(actions, "Keep selected rows", lambda: app.resolve("keep"), "secondary").pack(side="right", padx=(10, 0))
+    widgets.button(actions, "Merge selected rows", lambda: app.resolve("merge"), "primary_small").pack(side="right")
 
 
 # ============================================================================
 # Completion view
-# Purpose: confirm that review is finished and offer cleaned-file export.
-# Layout: result card with summary text and the export action.
-# Widgets: page(), card(), and a primary export button.
-# Events: app.export_results().
 # ============================================================================
 def render_complete(app):
-    """Render the post-review export screen."""
     outer = widgets.page(app, "Review complete", "Export the clean CSV and its companion audit log.")
     frame = widgets.card(outer)
-
     resolved = len(app.decisions)
-    tk.Label(frame, text="✓", bg=widgets.COLORS["green_light"], fg=widgets.COLORS["green"], font=widgets.FONTS["success_icon"], width=3, pady=12).grid(row=0, column=0, rowspan=2, padx=20, pady=24)
-    tk.Label(frame, text=f"{resolved} duplicate groups reviewed", bg=widgets.COLORS["paper"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).grid(row=0, column=1, sticky="sw")
-    tk.Label(frame, text="Nothing is overwritten. Export creates new files.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"]).grid(row=1, column=1, sticky="nw")
-    widgets.button(frame, "Export cleaned CSV", app.export_results, "primary", padx=18, pady=10).grid(row=0, column=2, rowspan=2, padx=24)
+    ctk.CTkLabel(frame, text="✓", fg_color=widgets.COLORS["green_light"], text_color=widgets.COLORS["green"], font=widgets.FONTS["success_icon"], width=64, height=64, corner_radius=18).grid(row=0, column=0, rowspan=2, padx=24, pady=26)
+    ctk.CTkLabel(frame, text=f"{resolved} duplicate groups reviewed", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").grid(row=0, column=1, sticky="sw")
+    ctk.CTkLabel(frame, text="Nothing is overwritten. Export creates new files.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").grid(row=1, column=1, sticky="nw")
+    widgets.button(frame, "Export cleaned CSV", app.export_results, "primary").grid(row=0, column=2, rowspan=2, padx=26)
 
 
+# ============================================================================
+# Analyze view
+# ============================================================================
 def render_analyze(app):
-    """Render the common-token analysis page."""
     app.crumb.configure(text=f"Analyze  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
-    outer = widgets.page(app, "Analyze", "Review common tokens and adjust their influence before scanning.")
-    tk.Label(outer, text="Reference columns are shown during review but do not affect matching.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_large"]).pack(anchor="w", pady=(0, 4))
-    tk.Label(outer, text=f"Analyzes: {_matching_columns_text(app)}  •  Showing tokens appearing in at least {app.rules.common_token_min_documents} rows.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).pack(anchor="w", pady=(0, 14))
+    outer = widgets.page(app, "Analyze", "Review common tokens and tune how strongly they influence matching.")
+    ctk.CTkLabel(outer, text="Reference columns appear during review but never affect matching.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_large"], anchor="w").pack(fill="x", pady=(0, 4))
+    ctk.CTkLabel(outer, text=f"Analyzes: {_matching_columns_text(app)}  •  Tokens must appear in at least {app.rules.common_token_min_documents} rows.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").pack(fill="x", pady=(0, 16))
 
     app.token_weight_vars = {}
     if not app.token_stats:
         empty = widgets.card(outer)
-        tk.Label(empty, text="No token analysis yet.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], padx=12, pady=10).pack(anchor="w", padx=20, pady=20)
+        ctk.CTkLabel(empty, text="No token analysis yet", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", padx=22, pady=(22, 5))
+        ctk.CTkLabel(empty, text="Load files and choose match columns in Setup, then run Analyze.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=22, pady=(0, 22))
     else:
-        table_holder = tk.Frame(outer, bg=widgets.COLORS["paper"], highlightbackground=widgets.COLORS["line"], highlightthickness=1)
+        table_holder = ctk.CTkFrame(outer, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=14)
         table_holder.pack(fill="both", expand=True)
         table = widgets.scrollable_frame(table_holder)
         for column, width in enumerate((150, 70, 80, 80, 360, 100)):
             table.grid_columnconfigure(column, minsize=width, weight=1 if column == 4 else 0)
         for column, heading in enumerate(("TOKEN", "ROWS", "SHARE", "AUTO", "EXAMPLES", "WEIGHT")):
-            tk.Label(table, text=heading, bg=widgets.COLORS["panel_header"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", padx=10, pady=7).grid(row=0, column=column, sticky="ew")
+            ctk.CTkLabel(table, text=heading, fg_color=widgets.COLORS["panel_header"], text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", corner_radius=0).grid(row=0, column=column, sticky="ew", padx=1, pady=1)
 
         for row, stat in enumerate(app.token_stats, 1):
             bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
-            tk.Label(table, text=stat.token, bg=bg, fg=widgets.COLORS["ink"], font=widgets.FONTS["body"], anchor="w", padx=10, pady=7).grid(row=row, column=0, sticky="ew")
-            tk.Label(table, text=str(stat.count), bg=bg, fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w", padx=10).grid(row=row, column=1, sticky="ew")
-            tk.Label(table, text=f"{stat.percentage:.1f}%", bg=bg, fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w", padx=10).grid(row=row, column=2, sticky="ew")
-            tk.Label(table, text=f"{stat.automatic_weight:.2f}", bg=bg, fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w", padx=10).grid(row=row, column=3, sticky="ew")
-            tk.Label(table, text=" | ".join(stat.examples), bg=bg, fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w", padx=10).grid(row=row, column=4, sticky="ew")
+            values = (stat.token, str(stat.count), f"{stat.percentage:.1f}%", f"{stat.automatic_weight:.2f}", " | ".join(stat.examples))
+            for column, value in enumerate(values):
+                ctk.CTkLabel(table, text=value, fg_color=bg, text_color=widgets.COLORS["ink"] if column == 0 else widgets.COLORS["muted"], font=widgets.FONTS["body"] if column != 4 else widgets.FONTS["body_small"], anchor="w", corner_radius=0).grid(row=row, column=column, sticky="ew", padx=1, pady=1)
             weight_var = tk.StringVar(value=f"{stat.weight:.2f}" if stat.token in app.rules.token_weights else "auto")
             app.token_weight_vars[stat.token] = weight_var
-            tk.Entry(table, textvariable=weight_var, width=7, font=widgets.FONTS["body"], justify="right").grid(row=row, column=5, padx=10, pady=4)
+            ctk.CTkEntry(table, textvariable=weight_var, width=76, height=32, justify="right", fg_color=widgets.COLORS["entry_bg"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["ink"], font=widgets.FONTS["body"], corner_radius=8).grid(row=row, column=5, padx=10, pady=6)
 
-    actions = tk.Frame(outer, bg=widgets.COLORS["bg"])
+    actions = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
     actions.pack(fill="x", pady=(18, 0))
-    widgets.button(actions, "Back to Setup", app.show_workspace, "ghost", padx=14, pady=8).pack(side="left")
-    widgets.button(actions, "Analyze", app.analyze_common_tokens, "primary_small", padx=14, pady=8).pack(side="right")
+    widgets.button(actions, "Back to Setup", app.show_workspace, "ghost").pack(side="left")
+    widgets.button(actions, "Run analysis", app.analyze_common_tokens, "primary_small").pack(side="right")
 
 
 def _matching_columns_text(app):
@@ -308,43 +319,33 @@ def _matching_columns_text(app):
 
 
 # ============================================================================
-# Rules view
-# Purpose: configure thresholds and normalization for matching.
-# Layout: algorithm -> threshold -> normalization -> actions.
-# Widgets: scale rows, normalization checkboxes, and action buttons.
-# Events: app.save_rules() and app.export_rules().
+# Settings view
 # ============================================================================
 def render_settings(app):
-    """Render the matching settings page."""
-    app.crumb.configure(text="Setup  ›  Settings")
-
+    app.crumb.configure(text="Settings")
     outer = widgets.page(app, "Settings", "Configure matching behavior before scanning.")
     frame = widgets.card(outer)
 
-    tk.Label(frame, text="ALGORITHM", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=0, column=0, sticky="w", padx=20, pady=18)
-    tk.Label(frame, text="Soft weighted token matching", bg=widgets.COLORS["paper"], fg=widgets.COLORS["ink"], font=widgets.FONTS["body_large"]).grid(row=1, column=0, sticky="w", padx=20)
-    tk.Label(frame, text="Handles reordered words while reducing common-token influence.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).grid(row=1, column=1, sticky="w", pady=14)
+    widgets.section_label(frame, "ALGORITHM", widgets.COLORS["green_light"], widgets.COLORS["green"], row=0, column=0, sticky="w", padx=22, pady=(22, 8))
+    ctk.CTkLabel(frame, text="Soft weighted token matching", text_color=widgets.COLORS["ink"], font=widgets.FONTS["body_large"], anchor="w").grid(row=1, column=0, sticky="w", padx=22)
+    ctk.CTkLabel(frame, text="Handles reordered words while reducing common-token influence.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").grid(row=1, column=1, sticky="w", pady=16)
 
     app.review_var = tk.IntVar(value=app.rules.review_threshold)
-
-    tk.Label(frame, text="THRESHOLD", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=2, column=0, columnspan=3, sticky="w", padx=20, pady=(18, 4))
+    widgets.section_label(frame, "THRESHOLDS", widgets.COLORS["panel_alt"], widgets.COLORS["muted"], row=2, column=0, columnspan=3, sticky="w", padx=22, pady=(22, 6))
     widgets.scale_row(frame, "Review threshold", app.review_var, 3)
     app.common_token_min_documents_var = tk.IntVar(value=app.rules.common_token_min_documents)
     widgets.scale_row(frame, "Minimum rows for common tokens", app.common_token_min_documents_var, 4, minimum=1, maximum=25)
 
     app.norm_vars = {}
-    norms = [("lowercase", "Lowercase"), ("remove_punctuation", "Remove punctuation")]
-    norm_frame = tk.Frame(frame, bg=widgets.COLORS["paper"])
-    norm_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=20, pady=18)
-    tk.Label(norm_frame, text="NORMALIZATION", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(anchor="w", pady=(0, 8))
-
-    for attr, label in norms:
+    norm_frame = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
+    norm_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=22, pady=20)
+    ctk.CTkLabel(norm_frame, text="NORMALIZATION", text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w").pack(fill="x", pady=(0, 10))
+    for attr, label in (("lowercase", "Lowercase text"), ("remove_punctuation", "Remove punctuation")):
         var = tk.BooleanVar(value=getattr(app.rules, attr))
         app.norm_vars[attr] = var
-        tk.Checkbutton(norm_frame, text=label, variable=var, bg=widgets.COLORS["paper"], activebackground=widgets.COLORS["paper"], selectcolor=widgets.COLORS["paper"], font=widgets.FONTS["body"]).pack(anchor="w", pady=3)
+        ctk.CTkCheckBox(norm_frame, text=label, variable=var, fg_color=widgets.COLORS["green"], hover_color=widgets.COLORS["green_hover"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["ink"], font=widgets.FONTS["body"], corner_radius=6).pack(anchor="w", pady=5)
 
-    actions = tk.Frame(frame, bg=widgets.COLORS["paper"])
-    actions.grid(row=6, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 20))
-
-    widgets.button(actions, "Save settings", app.save_rules, "primary_small", padx=18, pady=9).pack(side="right")
-    widgets.button(actions, "Export JSON…", app.export_rules, "secondary", padx=14, pady=8).pack(side="right", padx=9)
+    actions = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
+    actions.grid(row=6, column=0, columnspan=3, sticky="ew", padx=22, pady=(0, 22))
+    widgets.button(actions, "Save settings", app.save_rules, "primary_small").pack(side="right")
+    widgets.button(actions, "Export JSON…", app.export_rules, "secondary").pack(side="right", padx=10)
