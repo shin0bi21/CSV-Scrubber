@@ -64,8 +64,13 @@ class AppEvents:
         self.token_stats = []
         self.rules.token_weights.clear()
         path_var.set(path)
-        widgets.refresh_column_picker(source, "match_columns")
-        widgets.refresh_column_picker(source, "reference_columns")
+        views.render_workspace(self, self.scan_mode)
+
+    def apply_column_selection(self, source, role: str, selected_columns: list[str]):
+        """Map a column-picker role to engine state and rehydrate Setup."""
+        attribute = {"match": "match_columns", "reference": "reference_columns"}[role]
+        setattr(source, attribute, selected_columns)
+        views.render_workspace(self, self.scan_mode)
 
     def start_scan(self, mode: str):
         self.mode = mode
