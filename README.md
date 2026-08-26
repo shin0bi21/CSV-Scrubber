@@ -58,7 +58,7 @@ Single-file and multi-file modes share the same column-selection UI. The picker 
 The Settings screen deliberately does not select columns or review common tokens. It controls only:
 
 - algorithm selection and description,
-- review threshold,
+- similarity review threshold,
 - minimum common-token row count,
 - lowercase conversion,
 - punctuation removal.

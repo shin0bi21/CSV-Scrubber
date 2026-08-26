@@ -324,28 +324,30 @@ def _matching_columns_text(app):
 def render_settings(app):
     app.crumb.configure(text="Settings")
     outer = widgets.page(app, "Settings", "Configure matching behavior before scanning.")
-    frame = widgets.card(outer)
 
-    widgets.section_label(frame, "ALGORITHM", widgets.COLORS["green_light"], widgets.COLORS["green"], row=0, column=0, sticky="w", padx=22, pady=(22, 8))
-    ctk.CTkLabel(frame, text="Soft weighted token matching", text_color=widgets.COLORS["ink"], font=widgets.FONTS["body_large"], anchor="w").grid(row=1, column=0, sticky="w", padx=22)
-    ctk.CTkLabel(frame, text="Handles reordered words while reducing common-token influence.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").grid(row=1, column=1, sticky="w", pady=16)
+    algorithm_card = widgets.card(outer)
+    widgets.section_label(algorithm_card, "ALGORITHM", widgets.COLORS["green_light"], widgets.COLORS["green"], row=0, column=0, sticky="w", padx=22, pady=(22, 8))
+    ctk.CTkLabel(algorithm_card, text="Soft weighted token matching", text_color=widgets.COLORS["ink"], font=widgets.FONTS["body_large"], anchor="w").grid(row=1, column=0, sticky="w", padx=22, pady=(0, 20))
+    ctk.CTkLabel(algorithm_card, text="Handles reordered words while reducing common-token influence.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").grid(row=1, column=1, sticky="w", pady=(0, 20))
 
+    threshold_card = widgets.card(outer)
     app.review_var = tk.IntVar(value=app.rules.review_threshold)
-    widgets.section_label(frame, "THRESHOLDS", widgets.COLORS["panel_alt"], widgets.COLORS["muted"], row=2, column=0, columnspan=3, sticky="w", padx=22, pady=(22, 6))
-    widgets.scale_row(frame, "Review threshold", app.review_var, 3)
+    widgets.section_label(threshold_card, "THRESHOLDS", widgets.COLORS["panel_alt"], widgets.COLORS["muted"], row=0, column=0, columnspan=3, sticky="w", padx=22, pady=(22, 6))
+    widgets.scale_row(threshold_card, "Similarity review", app.review_var, 1)
     app.common_token_min_documents_var = tk.IntVar(value=app.rules.common_token_min_documents)
-    widgets.scale_row(frame, "Minimum rows for common tokens", app.common_token_min_documents_var, 4, minimum=1, maximum=25)
+    widgets.scale_row(threshold_card, "Minimum common-token rows", app.common_token_min_documents_var, 2, minimum=1, maximum=25)
 
+    normalization_card = widgets.card(outer)
     app.norm_vars = {}
-    norm_frame = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
-    norm_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=22, pady=20)
-    ctk.CTkLabel(norm_frame, text="NORMALIZATION", text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w").pack(fill="x", pady=(0, 10))
+    widgets.section_label(normalization_card, "NORMALIZATION", widgets.COLORS["panel_alt"], widgets.COLORS["muted"], row=0, column=0, sticky="w", padx=22, pady=(22, 8))
+    norm_frame = ctk.CTkFrame(normalization_card, fg_color="transparent", corner_radius=0)
+    norm_frame.grid(row=1, column=0, columnspan=3, sticky="ew", padx=22, pady=(0, 20))
     for attr, label in (("lowercase", "Lowercase text"), ("remove_punctuation", "Remove punctuation")):
         var = tk.BooleanVar(value=getattr(app.rules, attr))
         app.norm_vars[attr] = var
         ctk.CTkCheckBox(norm_frame, text=label, variable=var, fg_color=widgets.COLORS["green"], hover_color=widgets.COLORS["green_hover"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["ink"], font=widgets.FONTS["body"], corner_radius=6).pack(anchor="w", pady=5)
 
-    actions = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
-    actions.grid(row=6, column=0, columnspan=3, sticky="ew", padx=22, pady=(0, 22))
+    actions = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+    actions.pack(fill="x", pady=(2, 0))
     widgets.button(actions, "Save settings", app.save_rules, "primary_small").pack(side="right")
     widgets.button(actions, "Export JSON…", app.export_rules, "secondary").pack(side="right", padx=10)
