@@ -34,7 +34,7 @@ def build(app):
 # ============================================================================
 # Sidebar
 # Purpose: build branding, workspace navigation, and privacy messaging.
-# Events: navigation buttons call app.show_workspace(), app.show_analyze(), app.show_review(), or app.show_rules().
+# Events: navigation buttons call app.show_workspace(), app.show_analyze(), app.show_review(), or app.show_settings().
 # ============================================================================
 def _build_sidebar(app):
     app.sidebar = tk.Frame(app, bg=COLORS["nav"], width=220)
@@ -71,10 +71,10 @@ def _build_nav_buttons(app):
     review_button.pack(fill="x", padx=10, pady=2)
     app.nav_buttons["review"] = review_button
 
-    tk.Label(sidebar, text="CONFIGURE", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(22, 6))
-    rules_button = button(sidebar, "Ruleset", app.show_rules, "nav", anchor="w", padx=16, pady=11)
-    rules_button.pack(fill="x", padx=10, pady=2)
-    app.nav_buttons["rules"] = rules_button
+    tk.Label(sidebar, text="SETTINGS", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(22, 6))
+    settings_button = button(sidebar, "Settings", app.show_settings, "nav", anchor="w", padx=16, pady=11)
+    settings_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["settings"] = settings_button
 
 
 def _build_privacy_footer(sidebar):

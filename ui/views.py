@@ -327,11 +327,11 @@ def _matching_columns_text(app):
 # Widgets: scale rows, normalization checkboxes, and action buttons.
 # Events: app.save_rules() and app.export_rules().
 # ============================================================================
-def render_rules(app):
-    """Render the fuzzy-matching configuration screen."""
-    app.crumb.configure(text="Setup  ›  Ruleset")
+def render_settings(app):
+    """Render the matching settings page."""
+    app.crumb.configure(text="Setup  ›  Settings")
 
-    outer = widgets.page(app, "Configure ruleset", "Configure matching behavior before scanning.")
+    outer = widgets.page(app, "Settings", "Configure matching behavior before scanning.")
     frame = widgets.card(outer)
 
     tk.Label(frame, text="ALGORITHM", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=0, column=0, sticky="w", padx=20, pady=18)
@@ -359,5 +359,5 @@ def render_rules(app):
     actions = tk.Frame(frame, bg=widgets.COLORS["paper"])
     actions.grid(row=6, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 20))
 
-    widgets.button(actions, "Save ruleset", app.save_rules, "primary_small", padx=18, pady=9).pack(side="right")
+    widgets.button(actions, "Save settings", app.save_rules, "primary_small", padx=18, pady=9).pack(side="right")
     widgets.button(actions, "Export JSON…", app.export_rules, "secondary", padx=14, pady=8).pack(side="right", padx=9)
