@@ -348,11 +348,13 @@ def render_rules(app):
 
     tk.Label(frame, text="THRESHOLD", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=2, column=0, columnspan=3, sticky="w", padx=20, pady=(18, 4))
     widgets.scale_row(frame, "Review threshold", app.review_var, 3)
+    app.common_token_min_documents_var = tk.IntVar(value=app.rules.common_token_min_documents)
+    widgets.scale_row(frame, "Minimum rows for common tokens", app.common_token_min_documents_var, 4, minimum=1, maximum=25)
 
     app.norm_vars = {}
     norms = [("lowercase", "Lowercase"), ("remove_punctuation", "Remove punctuation")]
     norm_frame = tk.Frame(frame, bg=widgets.COLORS["paper"])
-    norm_frame.grid(row=4, column=0, columnspan=3, sticky="ew", padx=20, pady=18)
+    norm_frame.grid(row=5, column=0, columnspan=3, sticky="ew", padx=20, pady=18)
     tk.Label(norm_frame, text="NORMALIZATION", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(anchor="w", pady=(0, 8))
 
     for attr, label in norms:
@@ -361,7 +363,7 @@ def render_rules(app):
         tk.Checkbutton(norm_frame, text=label, variable=var, bg=widgets.COLORS["paper"], activebackground=widgets.COLORS["paper"], selectcolor=widgets.COLORS["paper"], font=widgets.FONTS["body"]).pack(anchor="w", pady=3)
 
     actions = tk.Frame(frame, bg=widgets.COLORS["paper"])
-    actions.grid(row=5, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 20))
+    actions.grid(row=6, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 20))
 
     widgets.button(actions, "Save ruleset", app.save_rules, "primary_small", padx=18, pady=9).pack(side="right")
     widgets.button(actions, "Export JSON…", app.export_rules, "secondary", padx=14, pady=8).pack(side="right", padx=9)
