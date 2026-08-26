@@ -7,9 +7,9 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-py -m pip install rapidfuzz
+py -m pip install "rapidfuzz>=3.0,<4" "customtkinter>=5.2,<6"
 if errorlevel 1 (
-  echo Could not install RapidFuzz.
+  echo Could not install application dependencies.
   pause
   exit /b 1
 )
