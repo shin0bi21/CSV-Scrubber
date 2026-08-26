@@ -2,15 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import tkinter as tk
-
-import customtkinter as ctk
+from tkinter import ttk
 
 from .styles import BUTTON_STYLES, COLORS, FONTS
 
 
 # ============================================================================
 # Shared layout widgets
-# Purpose: provide reusable modern frames, cards, buttons, and scrolling.
+# Purpose: provide reusable frames, cards, buttons, labels, and scrolling.
 # Ownership: layout and widget construction only; no navigation or app state.
 # ============================================================================
 def clear_body(app):
@@ -18,68 +17,49 @@ def clear_body(app):
         child.destroy()
 
 
-def page(app, title: str, subtitle: str) -> ctk.CTkFrame:
+def page(app, title: str, subtitle: str) -> tk.Frame:
     """Clear the body and create a standard titled view container."""
     clear_body(app)
-    outer = ctk.CTkFrame(app.body, fg_color="transparent", corner_radius=0)
-    outer.pack(fill="both", expand=True, padx=40, pady=32)
-    ctk.CTkLabel(outer, text=title, text_color=COLORS["ink"], font=FONTS["title"], anchor="w").pack(fill="x", anchor="w")
-    ctk.CTkLabel(outer, text=subtitle, text_color=COLORS["muted"], font=FONTS["body_large"], anchor="w").pack(fill="x", anchor="w", pady=(6, 24))
+    outer = tk.Frame(app.body, bg=COLORS["bg"])
+    outer.pack(fill="both", expand=True, padx=36, pady=28)
+    tk.Label(outer, text=title, bg=COLORS["bg"], fg=COLORS["ink"], font=FONTS["title"]).pack(anchor="w")
+    tk.Label(outer, text=subtitle, bg=COLORS["bg"], fg=COLORS["muted"], font=FONTS["body_large"]).pack(anchor="w", pady=(5, 22))
     return outer
 
 
-def card(parent) -> ctk.CTkFrame:
-    """Create a rounded, bordered content card."""
-    frame = ctk.CTkFrame(
-        parent,
-        fg_color=COLORS["paper"],
-        border_color=COLORS["line"],
-        border_width=1,
-        corner_radius=14,
-    )
+def card(parent) -> tk.Frame:
+    """Create a bordered content card with the standard paper background."""
+    frame = tk.Frame(parent, bg=COLORS["paper"], highlightbackground=COLORS["line"], highlightthickness=1)
     frame.pack(fill="x", pady=(0, 16))
     frame.grid_columnconfigure(1, weight=1)
     return frame
 
 
 def section_label(parent, text: str, bg: str, fg: str, **grid_kwargs):
-    label = ctk.CTkLabel(
-        parent,
-        text=text,
-        fg_color=bg,
-        text_color=fg,
-        font=FONTS["section"],
-        height=26,
-        corner_radius=7,
-    )
+    label = tk.Label(parent, text=text, bg=bg, fg=fg, font=FONTS["section"], padx=9, pady=4)
     label.grid(**grid_kwargs)
     return label
 
 
 def button(parent, text: str, command, style: str = "secondary", **kwargs):
-    """Create a consistently sized CustomTkinter button."""
+    """Create a themed Tk button with optional layout-specific overrides."""
     options = dict(BUTTON_STYLES[style])
-    horizontal_padding = kwargs.pop("padx", 0)
-    vertical_padding = kwargs.pop("pady", 0)
     options.update(kwargs)
-    options.setdefault("width", 196 if style == "nav" else max(92, len(text) * 8 + 28 + horizontal_padding))
-    if vertical_padding:
-        options["height"] = max(options.get("height", 34), vertical_padding * 2 + 20)
-    return ctk.CTkButton(parent, text=text, command=command, **options)
+    return tk.Button(parent, text=text, command=command, cursor="hand2", **options)
 
 
-def scrollable_frame(parent) -> ctk.CTkScrollableFrame:
-    """Create a modern scrollable content frame."""
-    frame = ctk.CTkScrollableFrame(
-        parent,
-        fg_color=COLORS["paper"],
-        corner_radius=0,
-        scrollbar_fg_color=COLORS["paper"],
-        scrollbar_button_color=COLORS["line"],
-        scrollbar_button_hover_color=COLORS["muted"],
-    )
-    frame.pack(fill="both", expand=True, padx=2, pady=2)
-    return frame
+def scrollable_frame(parent) -> tk.Frame:
+    """Create a scrollable frame and return its interior content frame."""
+    canvas = tk.Canvas(parent, bg=COLORS["paper"], highlightthickness=0)
+    scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+    table = tk.Frame(canvas, bg=COLORS["paper"])
+    table.bind("<Configure>", lambda _event: canvas.configure(scrollregion=canvas.bbox("all")))
+    table_window = canvas.create_window((0, 0), window=table, anchor="nw")
+    canvas.bind("<Configure>", lambda event: canvas.itemconfigure(table_window, width=event.width))
+    canvas.configure(yscrollcommand=scrollbar.set)
+    canvas.pack(side="left", fill="both", expand=True)
+    scrollbar.pack(side="right", fill="y")
+    return table
 
 
 # ============================================================================
@@ -89,21 +69,11 @@ def scrollable_frame(parent) -> ctk.CTkScrollableFrame:
 # ============================================================================
 def source_picker(app, frame, source, label: str, row: int):
     """Render a CSV path field and its browse action."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=(22, 14), pady=15)
+    tk.Label(frame, text=label, bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"]).grid(row=row, column=0, sticky="w", padx=(20, 12), pady=14)
     path_var = tk.StringVar(value=source.path)
-    entry = ctk.CTkEntry(
-        frame,
-        textvariable=path_var,
-        state="disabled",
-        fg_color=COLORS["entry_bg"],
-        border_color=COLORS["line"],
-        text_color=COLORS["ink"],
-        font=FONTS["body"],
-        height=40,
-        corner_radius=9,
-    )
-    entry.grid(row=row, column=1, sticky="ew", pady=15)
-    button(frame, "Browse…", lambda: app.load_source(source, path_var), "secondary").grid(row=row, column=2, padx=18, pady=15)
+    entry = tk.Entry(frame, textvariable=path_var, state="readonly", readonlybackground=COLORS["entry_bg"], relief="solid", bd=1, font=FONTS["body"])
+    entry.grid(row=row, column=1, sticky="ew", pady=14, ipady=8)
+    button(frame, "Browse…", lambda: app.load_source(source, path_var), "secondary", padx=12, pady=7).grid(row=row, column=2, padx=16, pady=14)
 
 
 def column_picker(
@@ -117,25 +87,17 @@ def column_picker(
     on_apply: Callable[[list[str]], None],
 ):
     """Render a reusable selected-column picker populated by the calling view."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=(22, 14), pady=15)
-    picker = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
-    picker.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 18), pady=10)
+    tk.Label(frame, text=label, bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"]).grid(row=row, column=0, sticky="w", padx=(20, 12), pady=14)
+    picker = tk.Frame(frame, bg=COLORS["paper"])
+    picker.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 16), pady=10)
     picker.grid_columnconfigure(0, weight=1)
 
     if not columns:
-        ctk.CTkLabel(picker, text="Load a CSV to choose columns.", text_color=COLORS["muted"], font=FONTS["body_small"], anchor="w").grid(row=0, column=0, sticky="ew")
+        tk.Label(picker, text="Load a CSV to choose columns.", bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["body_small"]).pack(anchor="w")
         return
 
     selected = ", ".join(selected_columns) if selected_columns else f"No {label.lower()} selected"
-    ctk.CTkLabel(
-        picker,
-        text=selected,
-        text_color=COLORS["ink"] if selected_columns else COLORS["muted"],
-        font=FONTS["body"],
-        anchor="w",
-        justify="left",
-        wraplength=430,
-    ).grid(row=0, column=0, sticky="ew", padx=(0, 12))
+    tk.Label(picker, text=selected, bg=COLORS["paper"], fg=COLORS["ink"] if selected_columns else COLORS["muted"], font=FONTS["body"], anchor="w", justify="left", wraplength=430).grid(row=0, column=0, sticky="ew", padx=(0, 12))
     button(
         picker,
         "Choose columns…",
@@ -148,107 +110,63 @@ def column_picker(
             on_apply=on_apply,
         ),
         "secondary",
+        padx=12,
+        pady=7,
     ).grid(row=0, column=1, sticky="e")
 
 
 def column_selection_popup(parent, *, title: str, subtitle: str, columns: list[str], selected_columns: list[str], on_apply: Callable[[list[str]], None]):
     """Render a generic column-selection popup from supplied view data."""
-    dialog = ctk.CTkToplevel(parent)
+    dialog = tk.Toplevel(parent)
     dialog.title(title)
-    dialog.geometry("560x620")
-    dialog.minsize(460, 420)
-    dialog.configure(fg_color=COLORS["bg"])
+    dialog.geometry("520x560")
+    dialog.minsize(420, 360)
+    dialog.configure(bg=COLORS["bg"])
     dialog.transient(parent)
     dialog.grab_set()
-    dialog.after(50, dialog.focus_force)
 
-    ctk.CTkLabel(dialog, text=title, text_color=COLORS["ink"], font=FONTS["card_title"], anchor="w").pack(fill="x", padx=28, pady=(26, 4))
-    ctk.CTkLabel(dialog, text=subtitle, text_color=COLORS["muted"], font=FONTS["body"], anchor="w", justify="left", wraplength=500).pack(fill="x", padx=28, pady=(0, 18))
+    tk.Label(dialog, text=title, bg=COLORS["bg"], fg=COLORS["ink"], font=FONTS["card_title"]).pack(anchor="w", padx=24, pady=(22, 4))
+    tk.Label(dialog, text=subtitle, bg=COLORS["bg"], fg=COLORS["muted"], font=FONTS["body"]).pack(anchor="w", padx=24, pady=(0, 16))
 
-    body = ctk.CTkFrame(dialog, fg_color=COLORS["paper"], border_color=COLORS["line"], border_width=1, corner_radius=14)
-    body.pack(fill="both", expand=True, padx=28)
+    body = tk.Frame(dialog, bg=COLORS["paper"], highlightbackground=COLORS["line"], highlightthickness=1)
+    body.pack(fill="both", expand=True, padx=24)
     columns_frame = scrollable_frame(body)
-    columns_frame.grid_columnconfigure(0, weight=1)
     variables = {}
     for index, column in enumerate(columns):
         variable = tk.BooleanVar(value=column in selected_columns)
         variables[column] = variable
-        ctk.CTkCheckBox(
-            columns_frame,
-            text=column,
-            variable=variable,
-            text_color=COLORS["ink"],
-            fg_color=COLORS["green"],
-            hover_color=COLORS["green_hover"],
-            border_color=COLORS["line"],
-            font=FONTS["body"],
-            corner_radius=6,
-        ).grid(row=index, column=0, sticky="w", padx=18, pady=8)
+        tk.Checkbutton(columns_frame, text=column, variable=variable, bg=COLORS["paper"], activebackground=COLORS["paper"], selectcolor=COLORS["paper"], font=FONTS["body"], anchor="w").grid(row=index, column=0, sticky="w", padx=16, pady=5)
 
-    actions = ctk.CTkFrame(dialog, fg_color="transparent", corner_radius=0)
-    actions.pack(fill="x", padx=28, pady=20)
+    actions = tk.Frame(dialog, bg=COLORS["bg"])
+    actions.pack(fill="x", padx=24, pady=18)
 
     def apply_columns():
         on_apply([column for column in columns if variables[column].get()])
         dialog.destroy()
 
-    button(actions, "Cancel", dialog.destroy, "ghost").pack(side="right", padx=(9, 0))
+    button(actions, "Cancel", dialog.destroy, "ghost", padx=14, pady=8).pack(side="right", padx=(9, 0))
     apply_columns_button(actions, apply_columns).pack(side="right")
 
 
 def apply_columns_button(parent, command):
     """Render the standard column-selection apply button."""
-    return button(parent, "Apply columns", command, "primary_small")
+    return button(parent, "Apply columns", command, "primary_small", padx=14, pady=8)
 
 
 def scale_row(frame, label: str, var: tk.IntVar, row: int, minimum: int = 60, maximum: int = 100):
     """Render a labeled threshold slider and its current value."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=22, pady=16)
-    scale = ctk.CTkSlider(
-        frame,
-        from_=minimum,
-        to=maximum,
-        number_of_steps=maximum - minimum,
-        variable=var,
-        fg_color=COLORS["progress_trough"],
-        progress_color=COLORS["green"],
-        button_color=COLORS["green"],
-        button_hover_color=COLORS["green_hover"],
-        height=18,
-    )
-    scale.grid(row=row, column=1, sticky="ew", pady=16)
-    ctk.CTkLabel(
-        frame,
-        textvariable=var,
-        fg_color=COLORS["green_light"],
-        text_color=COLORS["green"],
-        font=FONTS["label"],
-        width=58,
-        height=32,
-        corner_radius=8,
-    ).grid(row=row, column=2, padx=22)
+    tk.Label(frame, text=label, bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"]).grid(row=row, column=0, sticky="w", padx=20, pady=14)
+    scale = tk.Scale(frame, from_=minimum, to=maximum, orient="horizontal", variable=var, showvalue=False, bg=COLORS["paper"], fg=COLORS["green"], highlightthickness=0, troughcolor=COLORS["line"])
+    scale.grid(row=row, column=1, sticky="ew", pady=14)
+    tk.Label(frame, textvariable=var, bg=COLORS["green_light"], fg=COLORS["green"], font=FONTS["label"], width=5, pady=5).grid(row=row, column=2, padx=20)
 
 
 def progress_overlay(app):
     """Create and start the indeterminate scan-progress overlay."""
-    overlay = ctk.CTkFrame(
-        app.body,
-        fg_color=COLORS["paper"],
-        border_color=COLORS["line"],
-        border_width=1,
-        corner_radius=16,
-    )
+    overlay = tk.Frame(app.body, bg=COLORS["bg"])
     overlay.place(relx=.5, rely=.45, anchor="center")
-    ctk.CTkLabel(overlay, text="Finding likely matches…", text_color=COLORS["ink"], font=FONTS["progress"]).pack(padx=44, pady=(28, 16))
-    bar = ctk.CTkProgressBar(
-        overlay,
-        mode="indeterminate",
-        width=320,
-        height=8,
-        fg_color=COLORS["progress_trough"],
-        progress_color=COLORS["green"],
-        corner_radius=6,
-    )
-    bar.pack(padx=44, pady=(0, 30))
-    bar.start()
+    tk.Label(overlay, text="Finding likely matches…", bg=COLORS["bg"], fg=COLORS["ink"], font=FONTS["progress"]).pack(pady=10)
+    bar = ttk.Progressbar(overlay, mode="indeterminate", length=300)
+    bar.pack()
+    bar.start(10)
     return overlay

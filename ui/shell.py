@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import customtkinter as ctk
+import tkinter as tk
+from tkinter import ttk
 
 from .styles import COLORS, FONTS, NAV_BUTTON_STATES
 from .widgets import button
@@ -8,30 +9,35 @@ from .widgets import button
 
 # ============================================================================
 # Shell setup
-# Purpose: initialize CustomTkinter and build the application frame.
+# Purpose: configure shared ttk styles and build the application frame.
 # Ownership: sidebar, topbar, navigation, and the body host for views.
 # ============================================================================
-def setup_styles(_app):
-    """Use a consistent modern light appearance across the application."""
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("green")
+def setup_styles(app):
+    """Configure ttk styles used by the application shell and widgets."""
+    style = ttk.Style(app)
+    try:
+        style.theme_use("clam")
+    except tk.TclError:
+        pass
+    style.configure("TCombobox", padding=7, fieldbackground=COLORS["paper"], background=COLORS["paper"])
+    style.configure("Horizontal.TProgressbar", troughcolor=COLORS["progress_trough"], background=COLORS["green"])
 
 
 def build(app):
     """Build the persistent shell around the replaceable view body."""
     _build_sidebar(app)
     _build_topbar(app)
-    app.body = ctk.CTkFrame(app.right, fg_color=COLORS["bg"], corner_radius=0)
+    app.body = tk.Frame(app.right, bg=COLORS["bg"])
     app.body.pack(fill="both", expand=True)
 
 
 # ============================================================================
 # Sidebar
 # Purpose: build branding, workspace navigation, and privacy messaging.
-# Events: navigation buttons call the matching app view event.
+# Events: navigation buttons call app.show_workspace(), app.show_analyze(), app.show_review(), or app.show_settings().
 # ============================================================================
 def _build_sidebar(app):
-    app.sidebar = ctk.CTkFrame(app, fg_color=COLORS["nav"], width=236, corner_radius=0)
+    app.sidebar = tk.Frame(app, bg=COLORS["nav"], width=220)
     app.sidebar.pack(side="left", fill="y")
     app.sidebar.pack_propagate(False)
     _build_brand(app.sidebar)
@@ -40,52 +46,45 @@ def _build_sidebar(app):
 
 
 def _build_brand(sidebar):
-    brand = ctk.CTkFrame(sidebar, fg_color="transparent", corner_radius=0)
-    brand.pack(fill="x", padx=20, pady=(26, 34))
-    ctk.CTkLabel(
-        brand,
-        text="✦",
-        fg_color=COLORS["brand_bg"],
-        text_color=COLORS["brand_fg"],
-        font=FONTS["brand_icon"],
-        width=42,
-        height=42,
-        corner_radius=12,
-    ).pack(side="left")
-    brand_text = ctk.CTkFrame(brand, fg_color="transparent", corner_radius=0)
-    brand_text.pack(side="left", padx=12)
-    ctk.CTkLabel(brand_text, text="CSV Scrubber", text_color=COLORS["text_on_dark"], font=FONTS["brand"], anchor="w").pack(fill="x", anchor="w")
-    ctk.CTkLabel(brand_text, text="Local workspace", text_color=COLORS["brand_muted"], font=FONTS["body_tiny"], anchor="w").pack(fill="x", anchor="w", pady=(2, 0))
+    brand = tk.Frame(sidebar, bg=COLORS["nav"])
+    brand.pack(fill="x", padx=18, pady=(23, 30))
+    tk.Label(brand, text="✦", bg=COLORS["brand_bg"], fg=COLORS["brand_fg"], font=FONTS["brand_icon"], width=2, pady=4).pack(side="left")
+    brand_text = tk.Frame(brand, bg=COLORS["nav"])
+    brand_text.pack(side="left", padx=10)
+    tk.Label(brand_text, text="CSV Scrubber", bg=COLORS["nav"], fg=COLORS["text_on_dark"], font=FONTS["brand"]).pack(anchor="w")
+    tk.Label(brand_text, text="Local workspace", bg=COLORS["nav"], fg=COLORS["brand_muted"], font=FONTS["body_small"]).pack(anchor="w")
 
 
 def _build_nav_buttons(app):
     sidebar = app.sidebar
-    ctk.CTkLabel(sidebar, text="WORKFLOW", text_color=COLORS["nav_label"], font=FONTS["section"], anchor="w").pack(fill="x", padx=24, pady=(0, 8))
+    tk.Label(sidebar, text="WORKSPACE", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(0, 6))
     app.nav_buttons = {}
+    workspace_button = button(sidebar, "Setup", app.show_workspace, "nav", anchor="w", padx=16, pady=11)
+    workspace_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["workspace"] = workspace_button
 
-    for key, label, command in (
-        ("workspace", "Setup", app.show_workspace),
-        ("analyze", "Analyze", app.show_analyze),
-        ("review", "Review", app.show_review),
-    ):
-        nav_button = button(sidebar, label, command, "nav", anchor="w")
-        nav_button.pack(fill="x", padx=12, pady=3)
-        app.nav_buttons[key] = nav_button
+    analyze_button = button(sidebar, "Analyze", app.show_analyze, "nav", anchor="w", padx=16, pady=11)
+    analyze_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["analyze"] = analyze_button
 
-    ctk.CTkLabel(sidebar, text="PREFERENCES", text_color=COLORS["nav_label"], font=FONTS["section"], anchor="w").pack(fill="x", padx=24, pady=(28, 8))
-    settings_button = button(sidebar, "Settings", app.show_settings, "nav", anchor="w")
-    settings_button.pack(fill="x", padx=12, pady=3)
+    review_button = button(sidebar, "Review", app.show_review, "nav", anchor="w", padx=16, pady=11)
+    review_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["review"] = review_button
+
+    tk.Label(sidebar, text="SETTINGS", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(22, 6))
+    settings_button = button(sidebar, "Settings", app.show_settings, "nav", anchor="w", padx=16, pady=11)
+    settings_button.pack(fill="x", padx=10, pady=2)
     app.nav_buttons["settings"] = settings_button
 
 
 def _build_privacy_footer(sidebar):
-    privacy = ctk.CTkFrame(sidebar, fg_color=COLORS["nav_active"], corner_radius=12)
-    privacy.pack(side="bottom", fill="x", padx=16, pady=20)
-    ctk.CTkLabel(privacy, text="●", text_color=COLORS["privacy_dot"], font=FONTS["body_small"], width=16).pack(side="left", anchor="n", padx=(14, 4), pady=14)
-    text = ctk.CTkFrame(privacy, fg_color="transparent", corner_radius=0)
-    text.pack(side="left", fill="x", expand=True, padx=(4, 12), pady=12)
-    ctk.CTkLabel(text, text="Local processing", text_color=COLORS["text_on_dark"], font=FONTS["label"], anchor="w").pack(fill="x")
-    ctk.CTkLabel(text, text="CSV data stays on this device", text_color=COLORS["privacy_muted"], font=FONTS["body_tiny"], anchor="w").pack(fill="x", pady=(2, 0))
+    privacy = tk.Frame(sidebar, bg=COLORS["nav"])
+    privacy.pack(side="bottom", fill="x", padx=20, pady=22)
+    tk.Label(privacy, text="●", fg=COLORS["privacy_dot"], bg=COLORS["nav"], font=FONTS["body"]).pack(side="left", anchor="n")
+    text = tk.Frame(privacy, bg=COLORS["nav"])
+    text.pack(side="left", padx=8)
+    tk.Label(text, text="Local processing", fg=COLORS["text_on_dark"], bg=COLORS["nav"], font=FONTS["label"]).pack(anchor="w")
+    tk.Label(text, text="CSV data stays on this device", fg=COLORS["privacy_muted"], bg=COLORS["nav"], font=FONTS["body_tiny"]).pack(anchor="w")
 
 
 # ============================================================================
@@ -93,24 +92,19 @@ def _build_privacy_footer(sidebar):
 # Purpose: provide breadcrumbs, session reset, and active-nav styling.
 # ============================================================================
 def _build_topbar(app):
-    app.right = ctk.CTkFrame(app, fg_color=COLORS["bg"], corner_radius=0)
+    app.right = tk.Frame(app, bg=COLORS["bg"])
     app.right.pack(side="left", fill="both", expand=True)
-    app.topbar = ctk.CTkFrame(
-        app.right,
-        fg_color=COLORS["paper"],
-        height=68,
-        corner_radius=0,
-        border_color=COLORS["line"],
-        border_width=1,
-    )
+    app.topbar = tk.Frame(app.right, bg=COLORS["paper"], height=60, highlightbackground=COLORS["line"], highlightthickness=1)
     app.topbar.pack(fill="x")
     app.topbar.pack_propagate(False)
-    app.crumb = ctk.CTkLabel(app.topbar, text="Setup  ›  Single file", text_color=COLORS["muted"], font=FONTS["label"], anchor="w")
-    app.crumb.pack(side="left", padx=32)
-    button(app.topbar, "New session", app.show_workspace, "link_muted").pack(side="right", padx=26, pady=14)
+    app.crumb = tk.Label(app.topbar, text="Setup  ›  Single file", bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"])
+    app.crumb.pack(side="left", padx=28)
+    new_session = button(app.topbar, "New session", app.show_workspace, "link_muted")
+    new_session.pack(side="right", padx=25)
 
 
 def set_nav(app, active: str):
     """Apply the active style to the selected shell navigation button."""
     for key, nav_button in app.nav_buttons.items():
-        nav_button.configure(**NAV_BUTTON_STATES["active" if key == active else "inactive"])
+        state = NAV_BUTTON_STATES["active" if key == active else "inactive"]
+        nav_button.configure(**state)

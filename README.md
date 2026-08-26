@@ -6,7 +6,6 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 
 - Single-file mode: choose one CSV, matching columns, and reference columns.
 - Multi-file mode: choose a source-of-truth CSV, a dependent CSV, and matching/reference columns in each.
-- Modern CustomTkinter interface with scalable controls and a focused Setup, Analyze, Review, and Settings workflow.
 - Match and reference column selections start empty; at least one match column is required to scan, while reference columns are optional.
 - Soft token-level fuzzy matching using RapidFuzz, with automatic frequency weighting and no hard-coded company, region, or abbreviation rules.
 - Analyze frequent tokens from the selected matching columns on the Analyze page and manually adjust their influence; reference columns never affect scoring.
@@ -32,15 +31,15 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 1. Install Python 3.11 or newer from https://www.python.org/downloads/windows/ and select **Add Python to PATH** during installation.
 2. Double-click `run_windows.bat`.
 
-The launcher installs the required Python packages and starts the app from source.
+The launcher ensures RapidFuzz is available and starts the app from source.
 
 ## Build the standalone EXE
 
 Double-click `build_windows_exe.bat`. The finished executable will be:
 
-`dist\CSV-Scrubber\CSV-Scrubber.exe`
+`dist\CSV-Scrubber.exe`
 
-Python is required only to perform the build. Copy the complete `dist\CSV-Scrubber` folder to run the application on another Windows computer without installing Python.
+Python is required only to perform the build. The resulting EXE can be copied to another Windows computer without installing Python.
 
 ## Workflow
 
@@ -59,7 +58,6 @@ The Settings screen deliberately does not select columns or review common tokens
 
 - algorithm selection and description,
 - review threshold,
-- minimum common-token row count,
 - lowercase conversion,
 - punctuation removal.
 
