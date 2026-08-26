@@ -9,10 +9,12 @@ if errorlevel 1 (
 )
 py -m pip install -r requirements.txt
 if errorlevel 1 goto :error
-py -m PyInstaller --noconfirm --clean --onefile --windowed --name CSV-Scrubber app.py
+for /f "delims=" %%I in ('py -c "import customtkinter, pathlib; print(pathlib.Path(customtkinter.__file__).parent)"') do set "CUSTOMTKINTER_PATH=%%I"
+if not defined CUSTOMTKINTER_PATH goto :error
+py -m PyInstaller --noconfirm --clean --onedir --windowed --name CSV-Scrubber --add-data "%CUSTOMTKINTER_PATH%;customtkinter" app.py
 if errorlevel 1 goto :error
 echo.
-echo Build complete: %CD%\dist\CSV-Scrubber.exe
+echo Build complete: %CD%\dist\CSV-Scrubber\CSV-Scrubber.exe
 pause
 exit /b 0
 :error
