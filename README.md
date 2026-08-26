@@ -8,7 +8,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Multi-file mode: choose a source-of-truth CSV, a dependent CSV, and matching/reference columns in each.
 - Match and reference column selections start empty; at least one match column is required to scan, while reference columns are optional.
 - Soft token-level fuzzy matching using RapidFuzz, with automatic frequency weighting and no hard-coded company, region, or abbreviation rules.
-- Analyze frequent tokens from the selected matching columns in a separate workspace window and manually adjust their influence; reference columns never affect scoring.
+- Analyze frequent tokens from the selected matching columns on the Analyze page and manually adjust their influence; reference columns never affect scoring.
 - Generic normalization for Unicode, case, punctuation, and whitespace.
 - Review groups with confidence scores.
 - Manually resolve every detected group by keeping selected original rows, merging selected rows into one row, or explicitly marking it as not duplicated.
@@ -46,8 +46,9 @@ Python is required only to perform the build. The resulting EXE can be copied to
 The application follows the same high-level flow for every scan type:
 
 1. **Setup** — choose Single file or Multi-file, load CSVs, and select match/reference columns.
-2. **Review** — resolve the groups found by the scan.
-3. **Ruleset** — configure matching behavior before scanning.
+2. **Analyze** — inspect common tokens and adjust their influence before scanning.
+3. **Review** — resolve the groups found by the scan.
+4. **Ruleset** — configure matching behavior before scanning.
 
 Single-file and multi-file modes share the same column-selection UI. The picker receives the available columns, current selections, and a role (`match` or `reference`); the event layer maps that role to the appropriate engine field.
 
