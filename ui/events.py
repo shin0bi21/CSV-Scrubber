@@ -23,17 +23,20 @@ class AppEvents:
     # Purpose: switch screens and keep the application shell in sync.
     # UI work: update navigation state and call the appropriate view renderer.
     # ========================================================================
-    def show_import(self, mode: str):
+    def show_workspace(self, mode: str | None = None):
+        """Open the setup screen, optionally switching its scan mode."""
+        mode = mode or (self.scan_mode if self.scan_mode in ("single", "multi") else "single")
         self.mode = mode
         self.scan_mode = mode
-        shell.set_nav(self, mode)
-        views.render_import(self, mode)
+        shell.set_nav(self, "workspace")
+        views.render_workspace(self, mode)
 
     def show_review(self):
-        shell.set_nav(self, self.mode)
+        shell.set_nav(self, "review")
         views.render_review(self)
 
     def show_complete(self):
+        shell.set_nav(self, "review")
         views.render_complete(self)
 
     def show_rules(self):

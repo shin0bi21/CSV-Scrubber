@@ -34,7 +34,7 @@ def build(app):
 # ============================================================================
 # Sidebar
 # Purpose: build branding, workspace navigation, and privacy messaging.
-# Events: navigation buttons call app.show_import() or app.show_rules().
+# Events: navigation buttons call app.show_workspace(), app.show_review(), or app.show_rules().
 # ============================================================================
 def _build_sidebar(app):
     app.sidebar = tk.Frame(app, bg=COLORS["nav"], width=220)
@@ -59,12 +59,16 @@ def _build_nav_buttons(app):
     sidebar = app.sidebar
     tk.Label(sidebar, text="WORKSPACE", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(0, 6))
     app.nav_buttons = {}
-    for key, label in (("single", "◁   Single file"), ("multi", "◈   Multi-file")):
-        nav_button = button(sidebar, label, lambda mode=key: app.show_import(mode), "nav", anchor="w", padx=16, pady=11)
-        nav_button.pack(fill="x", padx=10, pady=2)
-        app.nav_buttons[key] = nav_button
+    workspace_button = button(sidebar, "Setup", app.show_workspace, "nav", anchor="w", padx=16, pady=11)
+    workspace_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["workspace"] = workspace_button
+
+    review_button = button(sidebar, "Review", app.show_review, "nav", anchor="w", padx=16, pady=11)
+    review_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["review"] = review_button
+
     tk.Label(sidebar, text="CONFIGURE", bg=COLORS["nav"], fg=COLORS["nav_label"], font=FONTS["section"]).pack(anchor="w", padx=22, pady=(22, 6))
-    rules_button = button(sidebar, "</>  Fuzzy ruleset", app.show_rules, "nav", anchor="w", padx=16, pady=11)
+    rules_button = button(sidebar, "Ruleset", app.show_rules, "nav", anchor="w", padx=16, pady=11)
     rules_button.pack(fill="x", padx=10, pady=2)
     app.nav_buttons["rules"] = rules_button
 
@@ -89,9 +93,9 @@ def _build_topbar(app):
     app.topbar = tk.Frame(app.right, bg=COLORS["paper"], height=60, highlightbackground=COLORS["line"], highlightthickness=1)
     app.topbar.pack(fill="x")
     app.topbar.pack_propagate(False)
-    app.crumb = tk.Label(app.topbar, text="Workspace  ›  Single file", bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"])
+    app.crumb = tk.Label(app.topbar, text="Setup  ›  Single file", bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"])
     app.crumb.pack(side="left", padx=28)
-    new_session = button(app.topbar, "New session", lambda: app.show_import(app.mode if app.mode != "rules" else "single"), "link_muted")
+    new_session = button(app.topbar, "New session", app.show_workspace, "link_muted")
     new_session.pack(side="right", padx=25)
 
 

@@ -44,7 +44,7 @@ class ScrubberApp(AppEvents, tk.Tk):
 
         shell.setup_styles(self)
         shell.build(self)
-        self.show_import("single")
+        self.show_workspace()
 
     # Application state and data helpers
     def _row_for(self, ref: RecordRef) -> dict[str, str]:
