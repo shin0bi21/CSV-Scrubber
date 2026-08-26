@@ -1,8 +1,8 @@
-# CSV Scrubber V1
+# CSV Scrubber
 
 A local Windows desktop application for reviewing fuzzy duplicate matches and creating clean, auditable CSV exports.
 
-## V1 features
+## Features
 
 - Single-file mode: choose one CSV, matching columns, and reference columns.
 - Multi-file mode: choose a source-of-truth CSV, a dependent CSV, and matching/reference columns in each.
@@ -16,15 +16,15 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Export a cleaned UTF-8 CSV and a companion audit CSV. Input files are never overwritten.
 - All processing is local; the app does not call an LLM or upload CSV data.
 
-## Project structure
+## Project Structure
 
 - `app.py` initializes the application and owns shared state.
 - `engine.py` contains CSV and matching logic.
 - `ui/styles.py` contains colors, fonts, and button styles.
 - `ui/shell.py` builds the application-level sidebar, topbar, and navigation.
-- `ui/widgets.py` contains reusable controls.
-- `ui/views.py` builds the application screens.
-- `ui/events.py` handles user actions and event callbacks.
+- `ui/widgets.py` contains reusable controls, including the shared column picker and selection popup.
+- `ui/views.py` builds the application screens and hydrates shared widgets with view-specific data and roles.
+- `ui/events.py` handles user actions, maps UI roles to engine state, and rehydrates views.
 
 ## Run on Windows
 
@@ -43,25 +43,13 @@ Python is required only to perform the build. The resulting EXE can be copied to
 
 ## Workflow
 
-### Single-file
+The application follows the same high-level flow for every scan type:
 
-1. Open **Single file**.
-2. Choose a CSV.
-3. Open **Choose columns…** for Match columns and select at least one column. Optionally choose Reference columns for review context.
-4. Optionally open **Analyze common tokens…** and set token weights in its separate window.
-5. Scan and manually resolve every resulting group using the matching and reference columns.
-6. Keep one or more selected rows or merge selected rows into one record; mark intentional separate records as not duplicates.
-7. Export the clean file and audit log.
+1. **Setup** — choose Single file or Multi-file, load CSVs, and select match/reference columns.
+2. **Review** — resolve the groups found by the scan.
+3. **Ruleset** — configure matching behavior before scanning.
 
-### Multi-file
-
-1. Open **Multi-file**.
-2. Choose the truth CSV and select its matching and reference columns.
-3. Choose the dependent CSV and select its corresponding match and reference columns. The headers may differ.
-4. Optionally open **Analyze common tokens…** and set token weights in its separate window.
-5. Manually resolve every cross-file match using the matching and reference columns. Truth values are preselected when present.
-6. Keep one or more selected rows or create one merged golden record from them; mark intentional separate records as not duplicates.
-7. Export the reconciled file and audit log.
+Single-file and multi-file modes share the same column-selection UI. The picker receives the available columns, current selections, and a role (`match` or `reference`); the event layer maps that role to the appropriate engine field.
 
 ## Ruleset
 
@@ -75,11 +63,3 @@ The Ruleset screen deliberately does not select columns or review common tokens.
 Matching is column-agnostic. It applies only generic text normalization to the selected match columns and does not assume that a column contains company names, addresses, or any other specific kind of data. Reference columns never contribute to the score.
 
 The matching algorithm pairs individual tokens using fuzzy similarity, then combines those token scores with frequency-based weights. Tokens that occur often contribute less, while rare tokens contribute more; no token is removed solely because it belongs to a presumed business category. Manual weights adjust a token's relative influence. Exact normalized values still match exactly.
-
-## Notes and V1 limits
-
-- Match columns are combined per row for matching and common-token analysis; reference columns are displayed for review only.
-- Every detected group must receive an explicit review decision before export. “Keep selected rows” retains every checked original; “Merge selected rows” removes the duplicate group and creates one merged record from field choices among the checked rows; “Not duplicates” retains the group intentionally.
-- The audit CSV is written beside the cleaned CSV with `_audit.csv` appended to the filename. It records each group’s number, score, action, and original source/row references.
-- Large generic columns with little text variation may produce many candidates. V1 is targeted at files under 10,000 rows.
-- The EXE is unsigned. Windows SmartScreen may warn when it is first opened. Production distribution should use a code-signing certificate.
