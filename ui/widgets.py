@@ -153,10 +153,10 @@ def apply_columns_button(parent, command):
     return button(parent, "Apply columns", command, "primary_small", padx=14, pady=8)
 
 
-def scale_row(frame, label: str, var: tk.IntVar, row: int):
+def scale_row(frame, label: str, var: tk.IntVar, row: int, minimum: int = 60, maximum: int = 100):
     """Render a labeled threshold slider and its current value."""
     tk.Label(frame, text=label, bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"]).grid(row=row, column=0, sticky="w", padx=20, pady=14)
-    scale = tk.Scale(frame, from_=60, to=100, orient="horizontal", variable=var, showvalue=False, bg=COLORS["paper"], fg=COLORS["green"], highlightthickness=0, troughcolor=COLORS["line"])
+    scale = tk.Scale(frame, from_=minimum, to=maximum, orient="horizontal", variable=var, showvalue=False, bg=COLORS["paper"], fg=COLORS["green"], highlightthickness=0, troughcolor=COLORS["line"])
     scale.grid(row=row, column=1, sticky="ew", pady=14)
     tk.Label(frame, textvariable=var, bg=COLORS["green_light"], fg=COLORS["green"], font=FONTS["label"], width=5, pady=5).grid(row=row, column=2, padx=20)
 

@@ -199,12 +199,18 @@ class AppEvents:
 
     def save_rules(self) -> bool:
         review = self.review_var.get()
+        common_token_min_documents = self.common_token_min_documents_var.get()
         try:
             review = int(review)
+            common_token_min_documents = int(common_token_min_documents)
         except (AttributeError, tk.TclError, ValueError):
             messagebox.showwarning("Invalid ruleset", "Thresholds must be whole numbers.")
             return False
+        if review < 60 or review > 100 or common_token_min_documents < 1:
+            messagebox.showwarning("Invalid ruleset", "Review threshold must be 60–100 and common-token minimum rows must be at least 1.")
+            return False
         self.rules.review_threshold = review
+        self.rules.common_token_min_documents = common_token_min_documents
         for attr, var in self.norm_vars.items():
             setattr(self.rules, attr, var.get())
         messagebox.showinfo("Rules saved", "The fuzzy ruleset is active for new scans.")
@@ -224,6 +230,5 @@ class AppEvents:
         path = filedialog.asksaveasfilename(defaultextension=".json", initialfile="csv_scrubber_rules.json", filetypes=[("JSON", "*.json")])
         if path:
             exported_rules = asdict(self.rules)
-            exported_rules.pop("common_token_min_documents", None)
             exported_rules.pop("token_weights", None)
             Path(path).write_text(json.dumps({"algorithm": "soft_weighted_token_matching", **exported_rules}, indent=2), encoding="utf-8")
