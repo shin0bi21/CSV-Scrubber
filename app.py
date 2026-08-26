@@ -17,7 +17,6 @@ class CSVSource:
         self.rows: list[dict[str, str]] = []
         self.match_columns: list[str] = []
         self.reference_columns: list[str] = []
-        self._column_pickers: dict[str, tk.Frame] = {}
 
 
 class ScrubberApp(AppEvents, tk.Tk):

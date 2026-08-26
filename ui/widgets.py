@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import tkinter as tk
 from tkinter import ttk
 
@@ -75,49 +76,55 @@ def source_picker(app, frame, source, label: str, row: int):
     button(frame, "Browse…", lambda: app.load_source(source, path_var), "secondary", padx=12, pady=7).grid(row=row, column=2, padx=16, pady=14)
 
 
-def column_picker(source, frame, label: str, row: int, attribute: str = "match_columns"):
-    """Render a selected-column summary and its chooser action."""
+def column_picker(
+    frame,
+    label: str,
+    row: int,
+    columns: list[str],
+    selected_columns: list[str],
+    popup_title: str,
+    popup_subtitle: str,
+    on_apply: Callable[[list[str]], None],
+):
+    """Render a reusable selected-column picker populated by the calling view."""
     tk.Label(frame, text=label, bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["label"]).grid(row=row, column=0, sticky="w", padx=(20, 12), pady=14)
     picker = tk.Frame(frame, bg=COLORS["paper"])
     picker.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 16), pady=10)
     picker.grid_columnconfigure(0, weight=1)
-    source._column_pickers[attribute] = picker
-    refresh_column_picker(source, attribute)
 
-
-def refresh_column_picker(source, attribute: str = "match_columns"):
-    """Refresh a selected-column summary after source state changes."""
-    picker = source._column_pickers.get(attribute)
-    if picker is None:
-        return
-    for child in picker.winfo_children():
-        child.destroy()
-
-    if not source.headers:
+    if not columns:
         tk.Label(picker, text="Load a CSV to choose columns.", bg=COLORS["paper"], fg=COLORS["muted"], font=FONTS["body_small"]).pack(anchor="w")
         return
 
-    selected_columns = getattr(source, attribute)
-    selected = ", ".join(selected_columns) if selected_columns else f"No {attribute.replace('_', ' ')} selected"
+    selected = ", ".join(selected_columns) if selected_columns else f"No {label.lower()} selected"
     tk.Label(picker, text=selected, bg=COLORS["paper"], fg=COLORS["ink"] if selected_columns else COLORS["muted"], font=FONTS["body"], anchor="w", justify="left", wraplength=430).grid(row=0, column=0, sticky="ew", padx=(0, 12))
-    button(picker, "Choose columns…", lambda: choose_columns(source, attribute), "secondary", padx=12, pady=7).grid(row=0, column=1, sticky="e")
+    button(
+        picker,
+        "Choose columns…",
+        lambda: column_selection_popup(
+            picker.winfo_toplevel(),
+            title=popup_title,
+            subtitle=popup_subtitle,
+            columns=columns,
+            selected_columns=selected_columns,
+            on_apply=on_apply,
+        ),
+        "secondary",
+        padx=12,
+        pady=7,
+    ).grid(row=0, column=1, sticky="e")
 
 
-def choose_columns(source, attribute: str = "match_columns"):
-    """Open the reusable match or reference column selection dialog."""
-    picker = source._column_pickers[attribute]
-    parent = picker.winfo_toplevel()
-    is_match_picker = attribute == "match_columns"
+def column_selection_popup(parent, *, title: str, subtitle: str, columns: list[str], selected_columns: list[str], on_apply: Callable[[list[str]], None]):
+    """Render a generic column-selection popup from supplied view data."""
     dialog = tk.Toplevel(parent)
-    dialog.title("Choose match columns" if is_match_picker else "Choose reference columns")
+    dialog.title(title)
     dialog.geometry("520x560")
     dialog.minsize(420, 360)
     dialog.configure(bg=COLORS["bg"])
     dialog.transient(parent)
     dialog.grab_set()
 
-    title = "Choose columns used for matching" if is_match_picker else "Choose columns shown as review reference"
-    subtitle = "Selected values are combined per row before fuzzy matching." if is_match_picker else "These columns provide supporting context but do not affect the match score."
     tk.Label(dialog, text=title, bg=COLORS["bg"], fg=COLORS["ink"], font=FONTS["card_title"]).pack(anchor="w", padx=24, pady=(22, 4))
     tk.Label(dialog, text=subtitle, bg=COLORS["bg"], fg=COLORS["muted"], font=FONTS["body"]).pack(anchor="w", padx=24, pady=(0, 16))
 
@@ -125,8 +132,7 @@ def choose_columns(source, attribute: str = "match_columns"):
     body.pack(fill="both", expand=True, padx=24)
     columns_frame = scrollable_frame(body)
     variables = {}
-    selected_columns = getattr(source, attribute)
-    for index, column in enumerate(source.headers):
+    for index, column in enumerate(columns):
         variable = tk.BooleanVar(value=column in selected_columns)
         variables[column] = variable
         tk.Checkbutton(columns_frame, text=column, variable=variable, bg=COLORS["paper"], activebackground=COLORS["paper"], selectcolor=COLORS["paper"], font=FONTS["body"], anchor="w").grid(row=index, column=0, sticky="w", padx=16, pady=5)
@@ -134,13 +140,17 @@ def choose_columns(source, attribute: str = "match_columns"):
     actions = tk.Frame(dialog, bg=COLORS["bg"])
     actions.pack(fill="x", padx=24, pady=18)
 
-    def apply_selection():
-        setattr(source, attribute, [column for column in source.headers if variables[column].get()])
-        refresh_column_picker(source, attribute)
+    def apply_columns():
+        on_apply([column for column in columns if variables[column].get()])
         dialog.destroy()
 
     button(actions, "Cancel", dialog.destroy, "ghost", padx=14, pady=8).pack(side="right", padx=(9, 0))
-    button(actions, "Apply columns", apply_selection, "primary_small", padx=14, pady=8).pack(side="right")
+    apply_columns_button(actions, apply_columns).pack(side="right")
+
+
+def apply_columns_button(parent, command):
+    """Render the standard column-selection apply button."""
+    return button(parent, "Apply columns", command, "primary_small", padx=14, pady=8)
 
 
 def scale_row(frame, label: str, var: tk.IntVar, row: int):

@@ -7,6 +7,38 @@ from engine import MatchGroup, RecordRef
 from . import widgets
 
 
+_COLUMN_PICKER_CONFIG = {
+    "match": {
+        "attribute": "match_columns",
+        "label": "Match columns",
+        "popup_title": "Choose match columns",
+        "popup_subtitle": "Selected values are combined per row before fuzzy matching.",
+    },
+    "reference": {
+        "attribute": "reference_columns",
+        "label": "Reference columns",
+        "popup_title": "Choose reference columns",
+        "popup_subtitle": "These columns provide supporting context but do not affect the match score.",
+    },
+}
+
+
+def _render_column_picker(app, frame, source, row: int, role: str):
+    """Hydrate the shared column picker with source-specific view data."""
+    config = _COLUMN_PICKER_CONFIG[role]
+    attribute = config["attribute"]
+    widgets.column_picker(
+        frame,
+        config["label"],
+        row,
+        columns=source.headers,
+        selected_columns=getattr(source, attribute),
+        popup_title=config["popup_title"],
+        popup_subtitle=config["popup_subtitle"],
+        on_apply=lambda selected, source=source, role=role: app.apply_column_selection(source, role, selected),
+    )
+
+
 # ============================================================================
 # Setup view
 # Purpose: collect source files, select match/reference columns, review common tokens, and start a scan.
@@ -37,8 +69,8 @@ def _render_single_import(app, outer):
     frame.pack_configure(fill="both", expand=True)
 
     widgets.source_picker(app, frame, app.single, "CSV file", 0)
-    widgets.column_picker(app.single, frame, "Match columns", 1, "match_columns")
-    widgets.column_picker(app.single, frame, "Reference columns", 2, "reference_columns")
+    _render_column_picker(app, frame, app.single, 1, "match")
+    _render_column_picker(app, frame, app.single, 2, "reference")
     _render_common_token_section(frame, app, 3)
     frame.grid_rowconfigure(4, weight=1)
     _render_scan_action(frame, lambda: app.start_scan("single"), 5)
@@ -73,8 +105,8 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 
     widgets.section_label(frame, section_text, header_bg, widgets.COLORS["green"] if source.role == "truth" else widgets.COLORS["muted"], row=0, column=0, columnspan=3, sticky="w", padx=20, pady=(18, 8))
     widgets.source_picker(app, frame, source, file_label, 1)
-    widgets.column_picker(source, frame, "Match columns", 2, "match_columns")
-    widgets.column_picker(source, frame, "Reference columns", 3, "reference_columns")
+    _render_column_picker(app, frame, source, 2, "match")
+    _render_column_picker(app, frame, source, 3, "reference")
 
 
 # ============================================================================
