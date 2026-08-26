@@ -41,9 +41,9 @@ def _render_column_picker(app, frame, source, row: int, role: str):
 
 # ============================================================================
 # Setup view
-# Purpose: collect source files, select match/reference columns, review common tokens, and start a scan.
-# Layout: page -> source cards -> match/reference choosers -> common-token review -> scan action.
-# Events: app.load_source(), app.analyze_common_tokens(), and app.start_scan().
+# Purpose: collect source files, select match/reference columns, and start a scan.
+# Layout: page -> source cards -> match/reference choosers -> scan action.
+# Events: app.load_source() and app.start_scan().
 # ============================================================================
 def render_workspace(app, mode: str):
     """Render Setup and its selected single-file or multi-file mode."""
@@ -71,9 +71,8 @@ def _render_single_import(app, outer):
     widgets.source_picker(app, frame, app.single, "CSV file", 0)
     _render_column_picker(app, frame, app.single, 1, "match")
     _render_column_picker(app, frame, app.single, 2, "reference")
-    _render_common_token_section(frame, app, 3)
-    frame.grid_rowconfigure(4, weight=1)
-    _render_scan_action(frame, lambda: app.start_scan("single"), 5)
+    frame.grid_rowconfigure(3, weight=1)
+    _render_scan_action(frame, lambda: app.start_scan("single"), 4)
 
 
 def _render_multi_import(app, outer):
@@ -86,9 +85,8 @@ def _render_multi_import(app, outer):
 
     footer = widgets.card(outer)
     footer.pack_configure(fill="both", expand=True)
-    _render_common_token_section(footer, app, 0)
-    footer.grid_rowconfigure(1, weight=1)
-    _render_scan_action(footer, lambda: app.start_scan("multi"), 2)
+    footer.grid_rowconfigure(0, weight=1)
+    _render_scan_action(footer, lambda: app.start_scan("multi"), 1)
 
 
 def _render_scan_action(parent, command, row: int):
@@ -262,17 +260,6 @@ def render_complete(app):
     tk.Label(frame, text=f"{resolved} duplicate groups reviewed", bg=widgets.COLORS["paper"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).grid(row=0, column=1, sticky="sw")
     tk.Label(frame, text="Nothing is overwritten. Export creates new files.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"]).grid(row=1, column=1, sticky="nw")
     widgets.button(frame, "Export cleaned CSV", app.export_results, "primary", padx=18, pady=10).grid(row=0, column=2, rowspan=2, padx=24)
-
-
-def _render_common_token_section(frame, app, row: int):
-    common_frame = tk.Frame(frame, bg=widgets.COLORS["paper"])
-    common_frame.grid(row=row, column=0, columnspan=3, sticky="ew", padx=20, pady=(0, 18))
-    common_frame.grid_columnconfigure(1, weight=1)
-
-    tk.Label(common_frame, text="COMMON TOKENS", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
-    tk.Label(common_frame, text="Analyze frequent tokens from the match columns. Reference columns do not affect token scoring.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
-    tk.Label(common_frame, text=f"Analyzes: {_matching_columns_text(app)}", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).grid(row=2, column=0, sticky="w", pady=(0, 5))
-    widgets.button(common_frame, "Go to Analyze", app.show_analyze, "secondary", padx=12, pady=7).grid(row=2, column=2, sticky="e", pady=(0, 5))
 
 
 def render_analyze(app):
