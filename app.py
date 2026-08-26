@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import tkinter as tk
 
+import customtkinter as ctk
+
 from engine import MatchGroup, RecordRef, Ruleset, TokenStat
 from ui import shell, widgets
 from ui.events import AppEvents
@@ -19,15 +21,15 @@ class CSVSource:
         self.reference_columns: list[str] = []
 
 
-class ScrubberApp(AppEvents, tk.Tk):
+class ScrubberApp(AppEvents, ctk.CTk):
     """Application composition, initialization, and shared state."""
 
     def __init__(self):
         super().__init__()
         self.title("CSV Scrubber")
-        self.geometry("1260x820")
-        self.minsize(980, 680)
-        self.configure(bg=widgets.COLORS["bg"])
+        self.geometry("1320x860")
+        self.minsize(1040, 700)
+        self.configure(fg_color=widgets.COLORS["bg"])
 
         self.rules = Ruleset()
         self.single = CSVSource("single")
