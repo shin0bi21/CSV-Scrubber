@@ -31,6 +31,12 @@ class AppEvents:
         shell.set_nav(self, "workspace")
         views.render_workspace(self, mode)
 
+    def show_analyze(self):
+        """Open the common-token analysis screen and calculate its initial results."""
+        shell.set_nav(self, "analyze")
+        views.render_analyze(self)
+        self.analyze_common_tokens()
+
     def show_review(self):
         shell.set_nav(self, "review")
         views.render_review(self)
@@ -169,17 +175,9 @@ class AppEvents:
         messagebox.showinfo("Export complete", f"Saved:\n{path}\n{audit_path}")
 
     # ========================================================================
-    # Workspace matching setup events
-    # Purpose: analyze common tokens in the selected workspace columns and save or export matching configuration.
+    # Analyze events
+    # Purpose: analyze common tokens in the selected matching columns and save or export matching configuration.
     # ========================================================================
-    def open_common_token_analysis(self):
-        dialog = tk.Toplevel(self)
-        dialog.transient(self)
-        dialog.grab_set()
-        self.common_token_dialog = dialog
-        views.render_common_token_dialog(self, dialog)
-        self.analyze_common_tokens()
-
     def analyze_common_tokens(self):
         try:
             self._apply_token_weight_inputs()
@@ -193,9 +191,7 @@ class AppEvents:
             return
 
         self.token_stats = analyze_tokens(self._matching_values(), self.rules)
-        dialog = getattr(self, "common_token_dialog", None)
-        if dialog is not None and dialog.winfo_exists():
-            views.render_common_token_dialog(self, dialog)
+        views.render_analyze(self)
 
     def save_rules(self) -> bool:
         review = self.review_var.get()

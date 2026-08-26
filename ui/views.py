@@ -272,29 +272,23 @@ def _render_common_token_section(frame, app, row: int):
     tk.Label(common_frame, text="COMMON TOKENS", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=0, column=0, sticky="w", pady=(0, 5))
     tk.Label(common_frame, text="Analyze frequent tokens from the match columns. Reference columns do not affect token scoring.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
     tk.Label(common_frame, text=f"Analyzes: {_matching_columns_text(app)}", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).grid(row=2, column=0, sticky="w", pady=(0, 5))
-    widgets.button(common_frame, "Analyze common tokens…", app.open_common_token_analysis, "secondary", padx=12, pady=7).grid(row=2, column=2, sticky="e", pady=(0, 5))
+    widgets.button(common_frame, "Go to Analyze", app.show_analyze, "secondary", padx=12, pady=7).grid(row=2, column=2, sticky="e", pady=(0, 5))
 
 
-def render_common_token_dialog(app, dialog):
-    """Render the scrollable common-token analysis window."""
-    for child in dialog.winfo_children():
-        child.destroy()
-    dialog.title("Common-token analysis")
-    dialog.geometry("760x620")
-    dialog.minsize(560, 420)
-    dialog.configure(bg=widgets.COLORS["bg"])
-    app.common_token_dialog = dialog
-
-    tk.Label(dialog, text="Common-token analysis", bg=widgets.COLORS["bg"], fg=widgets.COLORS["ink"], font=widgets.FONTS["title"]).pack(anchor="w", padx=24, pady=(22, 4))
-    tk.Label(dialog, text="Reference columns are shown during review but do not affect matching.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_large"]).pack(anchor="w", padx=24, pady=(0, 4))
-    tk.Label(dialog, text=f"Analyzes: {_matching_columns_text(app)}  •  Showing tokens appearing in at least {app.rules.common_token_min_documents} rows.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).pack(anchor="w", padx=24, pady=(0, 14))
+def render_analyze(app):
+    """Render the common-token analysis page."""
+    app.crumb.configure(text=f"Analyze  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
+    outer = widgets.page(app, "Analyze", "Review common tokens and adjust their influence before scanning.")
+    tk.Label(outer, text="Reference columns are shown during review but do not affect matching.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_large"]).pack(anchor="w", pady=(0, 4))
+    tk.Label(outer, text=f"Analyzes: {_matching_columns_text(app)}  •  Showing tokens appearing in at least {app.rules.common_token_min_documents} rows.", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).pack(anchor="w", pady=(0, 14))
 
     app.token_weight_vars = {}
     if not app.token_stats:
-        tk.Label(dialog, text="No token analysis yet.", bg=widgets.COLORS["panel_subtle"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], padx=12, pady=10).pack(fill="x", padx=24, pady=8)
+        empty = widgets.card(outer)
+        tk.Label(empty, text="No token analysis yet.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"], padx=12, pady=10).pack(anchor="w", padx=20, pady=20)
     else:
-        table_holder = tk.Frame(dialog, bg=widgets.COLORS["paper"], highlightbackground=widgets.COLORS["line"], highlightthickness=1)
-        table_holder.pack(fill="both", expand=True, padx=24)
+        table_holder = tk.Frame(outer, bg=widgets.COLORS["paper"], highlightbackground=widgets.COLORS["line"], highlightthickness=1)
+        table_holder.pack(fill="both", expand=True)
         table = widgets.scrollable_frame(table_holder)
         for column, width in enumerate((150, 70, 80, 80, 360, 100)):
             table.grid_columnconfigure(column, minsize=width, weight=1 if column == 4 else 0)
@@ -312,10 +306,10 @@ def render_common_token_dialog(app, dialog):
             app.token_weight_vars[stat.token] = weight_var
             tk.Entry(table, textvariable=weight_var, width=7, font=widgets.FONTS["body"], justify="right").grid(row=row, column=5, padx=10, pady=4)
 
-    actions = tk.Frame(dialog, bg=widgets.COLORS["bg"])
-    actions.pack(fill="x", padx=24, pady=18)
+    actions = tk.Frame(outer, bg=widgets.COLORS["bg"])
+    actions.pack(fill="x", pady=(18, 0))
+    widgets.button(actions, "Back to Setup", app.show_workspace, "ghost", padx=14, pady=8).pack(side="left")
     widgets.button(actions, "Analyze", app.analyze_common_tokens, "primary_small", padx=14, pady=8).pack(side="right")
-    widgets.button(actions, "Close", dialog.destroy, "ghost", padx=14, pady=8).pack(side="right", padx=(0, 9))
 
 
 def _matching_columns_text(app):

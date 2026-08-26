@@ -34,7 +34,7 @@ def build(app):
 # ============================================================================
 # Sidebar
 # Purpose: build branding, workspace navigation, and privacy messaging.
-# Events: navigation buttons call app.show_workspace(), app.show_review(), or app.show_rules().
+# Events: navigation buttons call app.show_workspace(), app.show_analyze(), app.show_review(), or app.show_rules().
 # ============================================================================
 def _build_sidebar(app):
     app.sidebar = tk.Frame(app, bg=COLORS["nav"], width=220)
@@ -62,6 +62,10 @@ def _build_nav_buttons(app):
     workspace_button = button(sidebar, "Setup", app.show_workspace, "nav", anchor="w", padx=16, pady=11)
     workspace_button.pack(fill="x", padx=10, pady=2)
     app.nav_buttons["workspace"] = workspace_button
+
+    analyze_button = button(sidebar, "Analyze", app.show_analyze, "nav", anchor="w", padx=16, pady=11)
+    analyze_button.pack(fill="x", padx=10, pady=2)
+    app.nav_buttons["analyze"] = analyze_button
 
     review_button = button(sidebar, "Review", app.show_review, "nav", anchor="w", padx=16, pady=11)
     review_button.pack(fill="x", padx=10, pady=2)
