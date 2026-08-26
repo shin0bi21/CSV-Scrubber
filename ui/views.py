@@ -8,23 +8,31 @@ from . import widgets
 
 
 # ============================================================================
-# Import view
+# Setup view
 # Purpose: collect source files, select match/reference columns, review common tokens, and start a scan.
 # Layout: page -> source cards -> match/reference choosers -> common-token review -> scan action.
 # Events: app.load_source(), app.analyze_common_tokens(), and app.start_scan().
 # ============================================================================
-def render_import(app, mode: str):
-    """Render the single-file or multi-file source-selection view."""
-    app.crumb.configure(text=f"Workspace  ›  {'Single file' if mode == 'single' else 'Multi-file'}")
+def render_workspace(app, mode: str):
+    """Render Setup and its selected single-file or multi-file mode."""
+    app.crumb.configure(text=f"Setup  ›  {'Single file' if mode == 'single' else 'Multi-file'}")
+
+    outer = widgets.page(app, "Setup", "Set up a single-file or multi-file duplicate scan.")
+    mode_bar = tk.Frame(outer, bg=widgets.COLORS["bg"])
+    mode_bar.pack(fill="x", pady=(0, 16))
+    tk.Label(mode_bar, text="SCAN MODE", bg=widgets.COLORS["bg"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).pack(side="left", padx=(0, 12))
+    for option, label in (("single", "Single file"), ("multi", "Multi-file")):
+        style = "primary_small" if option == mode else "secondary"
+        widgets.button(mode_bar, label, lambda selected=option: app.show_workspace(selected), style, padx=13, pady=7).pack(side="left", padx=(0, 8))
 
     if mode == "single":
-        _render_single_import(app)
+        _render_single_import(app, outer)
     else:
-        _render_multi_import(app)
+        _render_multi_import(app, outer)
 
 
-def _render_single_import(app):
-    outer = widgets.page(app, "Find duplicates in one CSV", "Choose a file and the columns used to identify matching records.")
+def _render_single_import(app, outer):
+    tk.Label(outer, text="Find duplicates in one CSV", bg=widgets.COLORS["bg"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).pack(anchor="w", pady=(0, 8))
     frame = widgets.card(outer)
     frame.pack_configure(fill="both", expand=True)
 
@@ -36,8 +44,8 @@ def _render_single_import(app):
     _render_scan_action(frame, lambda: app.start_scan("single"), 5)
 
 
-def _render_multi_import(app):
-    outer = widgets.page(app, "Reconcile two CSV sources", "Choose the columns used to identify matching records. Column names may be different.")
+def _render_multi_import(app, outer):
+    tk.Label(outer, text="Reconcile two CSV sources", bg=widgets.COLORS["bg"], fg=widgets.COLORS["ink"], font=widgets.FONTS["card_title"]).pack(anchor="w", pady=(0, 8))
     sources = tk.Frame(outer, bg=widgets.COLORS["bg"])
     sources.pack(fill="x")
 
@@ -78,10 +86,14 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 # ============================================================================
 def render_review(app):
     """Render the current duplicate group for manual resolution."""
-    app.crumb.configure(text=f"Workspace  ›  {'Single-file' if app.mode == 'single' else 'Multi-file'} review")
-    outer = widgets.page(app, "Duplicate review", "Select one or more rows to keep, or choose field values to merge.")
+    app.crumb.configure(text=f"Review  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
+    outer = widgets.page(app, "Review", "Select one or more rows to keep, or choose field values to merge.")
 
     if not app.groups:
+        frame = widgets.card(outer)
+        tk.Label(frame, text="No review is ready yet.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["ink"], font=widgets.FONTS["body_large"]).pack(anchor="w", padx=20, pady=(20, 6))
+        tk.Label(frame, text="Run a scan from Setup first.", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["body"]).pack(anchor="w", padx=20, pady=(0, 16))
+        widgets.button(frame, "Back to Setup", app.show_workspace, "secondary", padx=14, pady=8).pack(anchor="w", padx=20, pady=(0, 20))
         return
 
     group: MatchGroup = app.groups[app.group_index]
@@ -291,9 +303,9 @@ def _matching_columns_text(app):
 # ============================================================================
 def render_rules(app):
     """Render the fuzzy-matching configuration screen."""
-    app.crumb.configure(text="Workspace  ›  Fuzzy ruleset")
+    app.crumb.configure(text="Setup  ›  Ruleset")
 
-    outer = widgets.page(app, "Configure fuzzy ruleset", "Configure matching behavior before scanning.")
+    outer = widgets.page(app, "Configure ruleset", "Configure matching behavior before scanning.")
     frame = widgets.card(outer)
 
     tk.Label(frame, text="ALGORITHM", bg=widgets.COLORS["paper"], fg=widgets.COLORS["muted"], font=widgets.FONTS["section"]).grid(row=0, column=0, sticky="w", padx=20, pady=18)
