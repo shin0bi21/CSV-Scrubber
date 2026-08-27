@@ -116,21 +116,30 @@ class AppEvents:
     # Purpose: translate review controls into decisions for the current groups.
     # UI work: read Tk variables, show validation messages, and navigate onward.
     # ========================================================================
+    def _edited_row_from_ui(self, ref: RecordRef) -> dict[str, str]:
+        """Copy one source row and apply the field edits currently shown in Review."""
+        row = dict(self._row_for(ref))
+        for (edited_ref, field), variable in self.edit_vars.items():
+            if edited_ref == ref:
+                row[field] = variable.get()
+        return row
+
     def _canonical_from_ui(self, group: MatchGroup, selected: list[RecordRef]) -> dict[str, str]:
-        """Read field selections from the review controls."""
+        """Build a merged row from the edited values selected in Review."""
         canonical: dict[str, str] = {}
         selected_refs = set(selected)
         preferred = next((ref for ref in selected if ref.source == "truth"), selected[0])
+        edited_rows = {ref: self._edited_row_from_ui(ref) for ref in selected}
         for ref in selected:
-            for field, value in self._row_for(ref).items():
+            for field, value in edited_rows[ref].items():
                 if field not in canonical or not canonical[field]:
                     canonical[field] = value
         for field, var in self.field_vars.items():
             source, idx = var.get().split(":", 1)
             chosen = RecordRef(source, int(idx))
             if chosen not in selected_refs:
-                chosen = preferred if self._row_for(preferred).get(field, "") else next((ref for ref in selected if self._row_for(ref).get(field, "")), preferred)
-            canonical[field] = self._row_for(chosen).get(field, "")
+                chosen = preferred if edited_rows[preferred].get(field, "") else next((ref for ref in selected if edited_rows[ref].get(field, "")), preferred)
+            canonical[field] = edited_rows[chosen].get(field, "")
         return canonical
 
     def resolve(self, action: str):
@@ -140,10 +149,12 @@ class AppEvents:
         if action in ("keep", "merge") and not selected:
             messagebox.showwarning("Select rows", "Select at least one row first.")
             return
+        edits = {ref: self._edited_row_from_ui(ref) for ref in group.records}
         self.decisions[self.group_index] = {
             "action": action,
             "selected": selected,
             "canonical": self._canonical_from_ui(group, selected) if action == "merge" else None,
+            "edits": edits,
         }
         if self.group_index + 1 < len(self.groups):
             self.group_index += 1

@@ -166,7 +166,7 @@ def _build_record_columns(app, table, group: MatchGroup):
     preferred_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
 
     for column, ref in enumerate(group.records, 1):
-        table.grid_columnconfigure(column, weight=1, minsize=230)
+        table.grid_columnconfigure(column, weight=1, minsize=280)
         keep = tk.BooleanVar(value=ref == preferred_ref)
         app.keep_vars[ref] = keep
         header = ctk.CTkFrame(table, fg_color=widgets.COLORS["panel_header"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=0)
@@ -176,6 +176,7 @@ def _build_record_columns(app, table, group: MatchGroup):
 
 def _build_field_rows(app, table, group: MatchGroup):
     app.field_vars = {}
+    app.edit_vars = {}
     headers = app._headers_for_review(group)
     default_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
     for row, field in enumerate(headers, 1):
@@ -195,12 +196,14 @@ def _preferred_ref(app, group, field: str, default_ref: RecordRef) -> RecordRef:
 def _build_field_values(app, table, group, row: int, field: str, variable: tk.StringVar):
     for column, ref in enumerate(group.records, 1):
         value = app._row_for(ref).get(field, "")
+        edit_variable = tk.StringVar(value=value)
+        app.edit_vars[(ref, field)] = edit_variable
         bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
         cell_frame = ctk.CTkFrame(table, fg_color=bg, corner_radius=0)
         cell_frame.grid(row=row, column=column, sticky="nsew")
         cell = ctk.CTkRadioButton(
             cell_frame,
-            text=value or "—",
+            text="",
             variable=variable,
             value=f"{ref.source}:{ref.index}",
             fg_color=widgets.COLORS["green"],
@@ -209,9 +212,20 @@ def _build_field_values(app, table, group, row: int, field: str, variable: tk.St
             text_color=widgets.COLORS["ink"],
             text_color_disabled=widgets.COLORS["muted"],
             font=widgets.FONTS["body"],
-            width=210,
+            width=28,
         )
-        cell.pack(fill="both", expand=True, padx=12, pady=11)
+        cell.pack(side="left", padx=(12, 4), pady=11)
+        entry = ctk.CTkEntry(
+            cell_frame,
+            textvariable=edit_variable,
+            fg_color=widgets.COLORS["entry_bg"],
+            border_color=widgets.COLORS["line"],
+            text_color=widgets.COLORS["ink"],
+            font=widgets.FONTS["body"],
+            height=36,
+            corner_radius=8,
+        )
+        entry.pack(side="left", fill="x", expand=True, padx=(0, 12), pady=8)
         app.field_widgets.setdefault(ref, []).append(cell)
 
 
@@ -230,7 +244,7 @@ def _refresh_field_choices(app):
         current = RecordRef(source, int(index))
         if current in selected_refs:
             continue
-        fallback = next((ref for ref in selected if app._row_for(ref).get(field, "")), preferred)
+        fallback = next((ref for ref in selected if app.edit_vars[(ref, field)].get()), preferred)
         variable.set(f"{fallback.source}:{fallback.index}")
 
 

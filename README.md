@@ -12,7 +12,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Analyze frequent tokens from the selected matching columns on the Analyze page and manually adjust their influence; reference columns never affect scoring.
 - Generic normalization for Unicode, case, punctuation, and whitespace.
 - Review groups with confidence scores.
-- Manually resolve every detected group by keeping selected original rows, merging selected rows into one row, or explicitly marking it as not duplicated.
+- Edit values during review, then keep selected rows, merge selected rows into one record, or explicitly mark the group as not duplicated.
 - Source-of-truth values are preferred by default in multi-file mode; missing truth values fall back to the dependent source.
 - Export a cleaned UTF-8 CSV and a companion audit CSV. Input files are never overwritten.
 - All processing is local; the app does not call an LLM or upload CSV data.
