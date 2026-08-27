@@ -7,13 +7,13 @@ try:
 except ImportError:  # The app remains usable before dependencies are installed.
     _rapid_ratio = None
 
-from .candidates import CandidateValue, as_columns, candidate_pairs
-from .models import MatchEvidence, Ruleset
-from .weights import (
+from .stage_00_models import MatchEvidence, Ruleset
+from .stage_02_weights import (
     automatic_token_weight,
     build_token_weights,
     token_document_frequencies,
 )
+from .stage_03_candidates import CandidateValue, as_columns, candidate_pairs
 
 
 def sequence_ratio(left: str, right: str) -> float:

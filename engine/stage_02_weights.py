@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from typing import Iterable
 
-from .models import Ruleset, TokenStat
-from .normalization import normalize
+from .stage_00_models import Ruleset, TokenStat
+from .stage_01_normalization import normalize
 
 
 def token_document_frequencies(values: Iterable[str]) -> dict[str, int]:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from .models import MatchEvidence, MatchGroup, RecordRef
+from .stage_00_models import MatchEvidence, MatchGroup, RecordRef
 
 
 class UnionFind:
