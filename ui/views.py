@@ -14,7 +14,7 @@ _COLUMN_PICKER_CONFIG = {
         "attribute": "match_columns",
         "label": "Match columns",
         "popup_title": "Choose match columns",
-        "popup_subtitle": "Selected values are combined per row before fuzzy matching.",
+        "popup_subtitle": "Selected columns are matched by position; values do not cross column boundaries.",
     },
     "reference": {
         "attribute": "reference_columns",
