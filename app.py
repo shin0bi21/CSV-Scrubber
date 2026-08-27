@@ -40,6 +40,7 @@ class ScrubberApp(AppEvents, ctk.CTk):
         self.groups: list[MatchGroup] = []
         self.group_index = 0
         self.decisions: dict[int, dict] = {}
+        self.edit_vars: dict[tuple[RecordRef, str], tk.StringVar] = {}
         self.token_stats: list[TokenStat] = []
         self.token_weight_vars: dict[str, tk.StringVar] = {}
 
@@ -82,10 +83,13 @@ class ScrubberApp(AppEvents, ctk.CTk):
             headers = list(self.truth.headers) + [header for header in self.dependent.headers if header not in self.truth.headers]
             refs = [RecordRef("truth", index) for index in range(len(self.truth.rows))] + [RecordRef("dependent", index) for index in range(len(self.dependent.rows))]
         removed: set[RecordRef] = set()
+        edited_rows: dict[RecordRef, dict[str, str]] = {}
         replacements: list[dict[str, str]] = []
         audit: list[dict[str, str]] = []
         for index, group in enumerate(self.groups):
             decision = self.decisions.get(index)
+            if decision:
+                edited_rows.update(decision.get("edits", {}))
             if not decision or decision["action"] == "not_duplicate":
                 action = "not_duplicate" if decision else "unreviewed"
             elif decision["action"] == "keep":
@@ -97,7 +101,7 @@ class ScrubberApp(AppEvents, ctk.CTk):
                 replacements.append(decision["canonical"])
                 action = "merge"
             audit.append({"group": str(index + 1), "score": str(group.score), "action": action, "records": "; ".join(f"{ref.source}:row {ref.index + 2}" for ref in group.records)})
-        output = [dict(sources[ref.source][ref.index]) for ref in refs if ref not in removed] + replacements
+        output = [dict(edited_rows.get(ref, sources[ref.source][ref.index])) for ref in refs if ref not in removed] + replacements
         return headers, output, audit
 
 if __name__ == "__main__":
