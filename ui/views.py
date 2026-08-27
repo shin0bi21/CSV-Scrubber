@@ -125,7 +125,12 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 def render_review(app):
     """Render the current duplicate group for manual resolution."""
     app.crumb.configure(text=f"Review  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
-    outer = widgets.page(app, "Review", "Select rows to keep, or choose field values for a merged record.")
+    outer = widgets.page(
+        app,
+        "Review",
+        "Select rows to keep, or choose field values for a merged record. "
+        "Main rows are editable; dependent rows are read-only.",
+    )
 
     if not app.groups:
         frame = widgets.card(outer)
@@ -253,6 +258,7 @@ def _build_field_values(app, table, group, row: int, field: str, variable: tk.St
         entry = ctk.CTkEntry(
             cell_frame,
             textvariable=edit_variable,
+            state="normal" if app._review_field_editable(ref, field) else "disabled",
             fg_color=widgets.COLORS["entry_bg"],
             border_color=widgets.COLORS["line"],
             text_color=widgets.COLORS["ink"],
