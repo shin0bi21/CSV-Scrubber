@@ -21,15 +21,15 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 ## Project Structure
 
 - `app.py` initializes the application and owns shared state.
-- `engine.py` is the stable public facade used by the application.
-- `csv_io.py` contains CSV reading and writing.
-- `matching/models.py` defines rules, record references, evidence, and groups.
-- `matching/normalization.py` prepares selected values without crossing column boundaries.
-- `matching/weights.py` analyzes token frequency and builds token weights.
-- `matching/candidates.py` generates exhaustive or blocked candidate pairs.
-- `matching/scoring.py` scores candidates and records match evidence.
-- `matching/grouping.py` creates connected review groups and reason labels.
-- `matching/scans.py` orchestrates single-file and cross-file scans.
+- `engine/__init__.py` is the stable public interface used by the application.
+- `csv_io.py` contains CSV reading and writing at the project root.
+- `engine/models.py` defines rules, record references, evidence, and groups.
+- `engine/normalization.py` prepares selected values without crossing column boundaries.
+- `engine/weights.py` analyzes token frequency and builds token weights.
+- `engine/candidates.py` generates exhaustive or blocked candidate pairs.
+- `engine/scoring.py` scores candidates and records match evidence.
+- `engine/grouping.py` creates connected review groups and reason labels.
+- `engine/scans.py` orchestrates single-file and cross-file scans.
 - `ui/styles.py` contains colors, fonts, and button styles.
 - `ui/shell.py` builds the application-level sidebar, topbar, and navigation.
 - `ui/widgets.py` contains reusable controls, including the shared column picker and selection popup.
