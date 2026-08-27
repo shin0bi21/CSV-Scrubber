@@ -13,6 +13,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Generic normalization for Unicode, case, punctuation, and whitespace.
 - Review groups with confidence scores.
 - Edit values during review, then keep selected rows, merge selected rows into one record, or explicitly mark the group as not duplicated.
+- Review editing is limited to matching fields on main rows; dependent rows and reference fields are read-only.
 - Source-of-truth values are preferred by default in multi-file mode; missing truth values fall back to the dependent source.
 - Export a cleaned UTF-8 CSV and a companion audit CSV. Input files are never overwritten.
 - All processing is local; the app does not call an LLM or upload CSV data.

@@ -65,6 +65,22 @@ class ScrubberApp(AppEvents, ctk.CTk):
                     headers.append(header)
         return headers
 
+    def _review_value_editable(self, ref: RecordRef) -> bool:
+        """Return whether a reviewed record's field values may be changed."""
+        return ref.source in ("single", "truth")
+
+    def _review_field_editable(self, ref: RecordRef, field: str) -> bool:
+        """Return whether a specific reviewed field may be changed."""
+        if not self._review_value_editable(ref):
+            return False
+        if ref.source == "single":
+            source = self.single
+        elif ref.source == "truth":
+            source = self.truth
+        else:
+            source = self.dependent
+        return field in source.match_columns
+
     def _matching_values(self) -> list[str]:
         def selected_cells(rows: list[dict[str, str]], columns: list[str]) -> list[str]:
             return [
