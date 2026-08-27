@@ -14,7 +14,7 @@ _COLUMN_PICKER_CONFIG = {
         "attribute": "match_columns",
         "label": "Match columns",
         "popup_title": "Choose match columns",
-        "popup_subtitle": "Selected values are combined per row before fuzzy matching.",
+        "popup_subtitle": "Selected columns are matched by position; values do not cross column boundaries.",
     },
     "reference": {
         "attribute": "reference_columns",
@@ -125,7 +125,12 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 def render_review(app):
     """Render the current duplicate group for manual resolution."""
     app.crumb.configure(text=f"Review  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
-    outer = widgets.page(app, "Review", "Select rows to keep, or choose field values for a merged record.")
+    outer = widgets.page(
+        app,
+        "Review",
+        "Select rows to keep, or choose field values for a merged record. "
+        "Main rows are editable; dependent rows are read-only.",
+    )
 
     if not app.groups:
         frame = widgets.card(outer)
@@ -153,10 +158,45 @@ def _build_group_header(app, outer, group: MatchGroup):
 
 
 def _build_reason_bar(parent, group: MatchGroup):
-    reason = ctk.CTkFrame(parent, fg_color=widgets.COLORS["panel_subtle"], height=44, corner_radius=13)
+    reason = ctk.CTkFrame(parent, fg_color=widgets.COLORS["panel_subtle"], corner_radius=13)
     reason.pack(fill="x", padx=2, pady=2)
-    reason.pack_propagate(False)
     ctk.CTkLabel(reason, text="●  " + "  •  ".join(group.reasons), text_color=widgets.COLORS["green"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=18, pady=11)
+    evidence_lines = []
+    evidence_items = list(group.evidence.items())
+    for (left_ref, right_ref), evidence in evidence_items[:5]:
+        pair_label = (
+            f"{left_ref.source} row {left_ref.index + 2} ↔ "
+            f"{right_ref.source} row {right_ref.index + 2}"
+        )
+        exact = ", ".join(left for left, _right in evidence.exact_token_matches)
+        fuzzy = ", ".join(
+            f"{left} <-> {right} ({similarity:.0f}%)"
+            for left, right, similarity in evidence.fuzzy_token_matches
+        )
+        unmatched = ", ".join(evidence.unmatched_left_tokens + evidence.unmatched_right_tokens)
+        parts = []
+        if exact:
+            parts.append(f"exact: {exact}")
+        if fuzzy:
+            parts.append(f"fuzzy: {fuzzy}")
+        if unmatched:
+            parts.append(f"unmatched: {unmatched}")
+        parts.append(
+            f"coverage: {evidence.shorter_name_coverage:.0f}% short / {evidence.longer_name_coverage:.0f}% long"
+        )
+        evidence_lines.append(f"{pair_label}: " + " • ".join(parts))
+    if len(evidence_items) > 5:
+        evidence_lines.append(f"+ {len(evidence_items) - 5} additional candidate pairs")
+    if evidence_lines:
+        ctk.CTkLabel(
+            reason,
+            text="\n".join(evidence_lines),
+            text_color=widgets.COLORS["muted"],
+            font=widgets.FONTS["body_small"],
+            anchor="w",
+            justify="left",
+            wraplength=1000,
+        ).pack(fill="x", padx=18, pady=(0, 11))
 
 
 def _build_record_columns(app, table, group: MatchGroup):
@@ -218,6 +258,7 @@ def _build_field_values(app, table, group, row: int, field: str, variable: tk.St
         entry = ctk.CTkEntry(
             cell_frame,
             textvariable=edit_variable,
+            state="normal" if app._review_field_editable(ref, field) else "disabled",
             fg_color=widgets.COLORS["entry_bg"],
             border_color=widgets.COLORS["line"],
             text_color=widgets.COLORS["ink"],

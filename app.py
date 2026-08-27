@@ -65,15 +65,37 @@ class ScrubberApp(AppEvents, ctk.CTk):
                     headers.append(header)
         return headers
 
+    def _review_value_editable(self, ref: RecordRef) -> bool:
+        """Return whether a reviewed record's field values may be changed."""
+        return ref.source in ("single", "truth")
+
+    def _review_field_editable(self, ref: RecordRef, field: str) -> bool:
+        """Return whether a specific reviewed field may be changed."""
+        if not self._review_value_editable(ref):
+            return False
+        if ref.source == "single":
+            source = self.single
+        elif ref.source == "truth":
+            source = self.truth
+        else:
+            source = self.dependent
+        return field in source.match_columns
+
     def _matching_values(self) -> list[str]:
-        def combined_value(row: dict[str, str], columns: list[str]) -> str:
-            return " ".join(row.get(column, "") for column in columns).strip()
+        def selected_cells(rows: list[dict[str, str]], columns: list[str]) -> list[str]:
+            return [
+                row.get(column, "")
+                for row in rows
+                for column in columns
+                if row.get(column, "")
+            ]
 
         if self.scan_mode == "single":
-            return [combined_value(row, self.single.match_columns) for row in self.single.rows]
-        return [combined_value(row, self.truth.match_columns) for row in self.truth.rows] + [
-            combined_value(row, self.dependent.match_columns) for row in self.dependent.rows
-        ]
+            return selected_cells(self.single.rows, self.single.match_columns)
+        return selected_cells(self.truth.rows, self.truth.match_columns) + selected_cells(
+            self.dependent.rows,
+            self.dependent.match_columns,
+        )
 
     def _build_export(self):
         sources = {"single": self.single.rows, "truth": self.truth.rows, "dependent": self.dependent.rows}

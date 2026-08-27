@@ -13,6 +13,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Generic normalization for Unicode, case, punctuation, and whitespace.
 - Review groups with confidence scores.
 - Edit values during review, then keep selected rows, merge selected rows into one record, or explicitly mark the group as not duplicated.
+- Review editing is limited to matching fields on main rows; dependent rows and reference fields are read-only.
 - Source-of-truth values are preferred by default in multi-file mode; missing truth values fall back to the dependent source.
 - Export a cleaned UTF-8 CSV and a companion audit CSV. Input files are never overwritten.
 - All processing is local; the app does not call an LLM or upload CSV data.
@@ -20,7 +21,15 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 ## Project Structure
 
 - `app.py` initializes the application and owns shared state.
-- `engine.py` contains CSV and matching logic.
+- `engine.py` is the stable public facade used by the application.
+- `csv_io.py` contains CSV reading and writing.
+- `matching/models.py` defines rules, record references, evidence, and groups.
+- `matching/normalization.py` prepares selected values without crossing column boundaries.
+- `matching/weights.py` analyzes token frequency and builds token weights.
+- `matching/candidates.py` generates exhaustive or blocked candidate pairs.
+- `matching/scoring.py` scores candidates and records match evidence.
+- `matching/grouping.py` creates connected review groups and reason labels.
+- `matching/scans.py` orchestrates single-file and cross-file scans.
 - `ui/styles.py` contains colors, fonts, and button styles.
 - `ui/shell.py` builds the application-level sidebar, topbar, and navigation.
 - `ui/widgets.py` contains reusable controls, including the shared column picker and selection popup.
@@ -63,6 +72,6 @@ The Settings screen deliberately does not select columns or review common tokens
 - lowercase conversion,
 - punctuation removal.
 
-Matching is column-agnostic. It applies only generic text normalization to the selected match columns and does not assume that a column contains company names, addresses, or any other specific kind of data. Reference columns never contribute to the score.
+Matching is column-agnostic. It applies only generic text normalization to the selected match columns and does not assume that a column contains company names, addresses, or any other specific kind of data. Selected match columns are compared by position, so tokens from different columns cannot match each other. Reference columns never contribute to the score.
 
-The matching algorithm pairs individual tokens using fuzzy similarity, then combines those token scores with frequency-based weights. Tokens that occur often contribute less, while rare tokens contribute more; no token is removed solely because it belongs to a presumed business category. Manual weights adjust a token's relative influence. Exact normalized values still match exactly.
+The matching algorithm compares normalized values per selected column through a token-level fuzzy-similarity flow, then combines column scores using optional column weights. Small scans can use exhaustive comparison; larger scans automatically use generic token and n-gram blocking before fuzzy scoring. Tokens that occur often contribute less, while rare tokens contribute more; a configured weight of zero excludes that token from scoring. Manual weights adjust a token's relative influence. Each accepted candidate retains token matches, unmatched tokens, coverage, and a reason for review; exact normalized values are distinguished from high-scoring non-identical values.

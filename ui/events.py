@@ -120,7 +120,7 @@ class AppEvents:
         """Copy one source row and apply the field edits currently shown in Review."""
         row = dict(self._row_for(ref))
         for (edited_ref, field), variable in self.edit_vars.items():
-            if edited_ref == ref:
+            if edited_ref == ref and self._review_field_editable(ref, field):
                 row[field] = variable.get()
         return row
 
