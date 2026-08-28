@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import re
 
-from ._00_models import Ruleset
-from ._01_normalization import NormalizedValue
+from ._01_types import Ruleset
+from ._02_normalization import NormalizedValue
 
 
 CandidateValue = str | NormalizedValue

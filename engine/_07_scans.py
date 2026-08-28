@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ._00_models import MatchGroup, RecordRef, Ruleset
-from ._01_normalization import selected_values
-from ._04_scoring import score_candidate_edges
-from ._05_grouping import UnionFind, build_groups
+from ._01_types import MatchGroup, RecordRef, Ruleset
+from ._02_normalization import selected_values
+from ._05_scoring import score_candidate_edges
+from ._06_grouping import UnionFind, build_groups
 
 
 def find_single_file_groups(
