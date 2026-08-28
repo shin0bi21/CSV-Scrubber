@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from .stage_00_models import Ruleset
+from ._00_models import Ruleset
 
 
 NormalizedValue = tuple[str, ...]
