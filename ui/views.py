@@ -120,6 +120,52 @@ def _render_source_card(app, parent, source, section_text, file_label, header_bg
 
 
 # ============================================================================
+# Analyze view
+# ============================================================================
+def render_analyze(app):
+    app.crumb.configure(text=f"Analyze  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
+    outer = widgets.page(app, "Analyze", "Review common tokens and tune how strongly they influence matching.")
+    ctk.CTkLabel(outer, text="Reference columns appear during review but never affect matching.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_large"], anchor="w").pack(fill="x", pady=(0, 4))
+    ctk.CTkLabel(outer, text=f"Analyzes: {_matching_columns_text(app)}  •  Tokens must appear in at least {app.rules.common_token_min_documents} rows.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").pack(fill="x", pady=(0, 16))
+
+    app.token_weight_vars = {}
+    if not app.token_stats:
+        empty = widgets.card(outer)
+        ctk.CTkLabel(empty, text="No token analysis yet", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", padx=22, pady=(22, 5))
+        ctk.CTkLabel(empty, text="Load files and choose match columns in Setup, then run Analyze.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=22, pady=(0, 22))
+    else:
+        table_holder = ctk.CTkFrame(outer, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=14)
+        table_holder.pack(fill="both", expand=True)
+        table = widgets.scrollable_frame(table_holder)
+        for column, width in enumerate((150, 70, 80, 80, 360, 100)):
+            table.grid_columnconfigure(column, minsize=width, weight=1 if column == 4 else 0)
+        for column, heading in enumerate(("TOKEN", "ROWS", "SHARE", "AUTO", "EXAMPLES", "WEIGHT")):
+            ctk.CTkLabel(table, text=heading, fg_color=widgets.COLORS["panel_header"], text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", corner_radius=0).grid(row=0, column=column, sticky="ew", padx=1, pady=1)
+
+        for row, stat in enumerate(app.token_stats, 1):
+            bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
+            values = (stat.token, str(stat.count), f"{stat.percentage:.1f}%", f"{stat.automatic_weight:.2f}", " | ".join(stat.examples))
+            for column, value in enumerate(values):
+                ctk.CTkLabel(table, text=value, fg_color=bg, text_color=widgets.COLORS["ink"] if column == 0 else widgets.COLORS["muted"], font=widgets.FONTS["body"] if column != 4 else widgets.FONTS["body_small"], anchor="w", corner_radius=0).grid(row=row, column=column, sticky="ew", padx=1, pady=1)
+            weight_var = tk.StringVar(value=f"{stat.weight:.2f}" if stat.token in app.rules.token_weights else "auto")
+            app.token_weight_vars[stat.token] = weight_var
+            ctk.CTkEntry(table, textvariable=weight_var, width=76, height=32, justify="right", fg_color=widgets.COLORS["entry_bg"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["ink"], font=widgets.FONTS["body"], corner_radius=8).grid(row=row, column=5, padx=10, pady=6)
+
+    actions = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
+    actions.pack(fill="x", pady=(18, 0))
+    widgets.button(actions, "Back to Setup", app.show_workspace, "ghost").pack(side="left")
+    widgets.button(actions, "Run analysis", app.analyze_common_tokens, "primary_small").pack(side="right")
+
+
+def _matching_columns_text(app):
+    if app.scan_mode == "single":
+        return ", ".join(app.single.match_columns) or "single-file match columns not selected"
+    truth = ", ".join(app.truth.match_columns) or "truth match columns not selected"
+    dependent = ", ".join(app.dependent.match_columns) or "dependent match columns not selected"
+    return f"{truth} + {dependent}"
+
+
+# ============================================================================
 # Review view
 # ============================================================================
 def render_review(app):
@@ -325,52 +371,6 @@ def render_complete(app):
     ctk.CTkLabel(frame, text=f"{resolved} duplicate groups reviewed", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").grid(row=0, column=1, sticky="sw")
     ctk.CTkLabel(frame, text="Nothing is overwritten. Export creates new files.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").grid(row=1, column=1, sticky="nw")
     widgets.button(frame, "Export cleaned CSV", app.export_results, "primary").grid(row=0, column=2, rowspan=2, padx=26)
-
-
-# ============================================================================
-# Analyze view
-# ============================================================================
-def render_analyze(app):
-    app.crumb.configure(text=f"Analyze  ›  {'Single-file' if app.scan_mode == 'single' else 'Multi-file'}")
-    outer = widgets.page(app, "Analyze", "Review common tokens and tune how strongly they influence matching.")
-    ctk.CTkLabel(outer, text="Reference columns appear during review but never affect matching.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_large"], anchor="w").pack(fill="x", pady=(0, 4))
-    ctk.CTkLabel(outer, text=f"Analyzes: {_matching_columns_text(app)}  •  Tokens must appear in at least {app.rules.common_token_min_documents} rows.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"], anchor="w").pack(fill="x", pady=(0, 16))
-
-    app.token_weight_vars = {}
-    if not app.token_stats:
-        empty = widgets.card(outer)
-        ctk.CTkLabel(empty, text="No token analysis yet", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(fill="x", padx=22, pady=(22, 5))
-        ctk.CTkLabel(empty, text="Load files and choose match columns in Setup, then run Analyze.", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=22, pady=(0, 22))
-    else:
-        table_holder = ctk.CTkFrame(outer, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=14)
-        table_holder.pack(fill="both", expand=True)
-        table = widgets.scrollable_frame(table_holder)
-        for column, width in enumerate((150, 70, 80, 80, 360, 100)):
-            table.grid_columnconfigure(column, minsize=width, weight=1 if column == 4 else 0)
-        for column, heading in enumerate(("TOKEN", "ROWS", "SHARE", "AUTO", "EXAMPLES", "WEIGHT")):
-            ctk.CTkLabel(table, text=heading, fg_color=widgets.COLORS["panel_header"], text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", corner_radius=0).grid(row=0, column=column, sticky="ew", padx=1, pady=1)
-
-        for row, stat in enumerate(app.token_stats, 1):
-            bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
-            values = (stat.token, str(stat.count), f"{stat.percentage:.1f}%", f"{stat.automatic_weight:.2f}", " | ".join(stat.examples))
-            for column, value in enumerate(values):
-                ctk.CTkLabel(table, text=value, fg_color=bg, text_color=widgets.COLORS["ink"] if column == 0 else widgets.COLORS["muted"], font=widgets.FONTS["body"] if column != 4 else widgets.FONTS["body_small"], anchor="w", corner_radius=0).grid(row=row, column=column, sticky="ew", padx=1, pady=1)
-            weight_var = tk.StringVar(value=f"{stat.weight:.2f}" if stat.token in app.rules.token_weights else "auto")
-            app.token_weight_vars[stat.token] = weight_var
-            ctk.CTkEntry(table, textvariable=weight_var, width=76, height=32, justify="right", fg_color=widgets.COLORS["entry_bg"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["ink"], font=widgets.FONTS["body"], corner_radius=8).grid(row=row, column=5, padx=10, pady=6)
-
-    actions = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
-    actions.pack(fill="x", pady=(18, 0))
-    widgets.button(actions, "Back to Setup", app.show_workspace, "ghost").pack(side="left")
-    widgets.button(actions, "Run analysis", app.analyze_common_tokens, "primary_small").pack(side="right")
-
-
-def _matching_columns_text(app):
-    if app.scan_mode == "single":
-        return ", ".join(app.single.match_columns) or "single-file match columns not selected"
-    truth = ", ".join(app.truth.match_columns) or "truth match columns not selected"
-    dependent = ", ".join(app.dependent.match_columns) or "dependent match columns not selected"
-    return f"{truth} + {dependent}"
 
 
 # ============================================================================
