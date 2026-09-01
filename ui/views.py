@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from itertools import zip_longest
 import tkinter as tk
 
 import customtkinter as ctk
@@ -23,6 +24,10 @@ _COLUMN_PICKER_CONFIG = {
         "popup_subtitle": "These columns provide supporting context but do not affect the match score.",
     },
 }
+
+_REVIEW_RECORD_WIDTH = 250
+_REVIEW_HEADER_HEIGHT = 50
+_REVIEW_ROW_HEIGHT = 62
 
 
 def _render_column_picker(app, frame, source, row: int, role: str):
@@ -187,12 +192,14 @@ def render_review(app):
 
     group: MatchGroup = app.groups[app.group_index]
     _build_group_header(app, outer, group)
-    review_frame = ctk.CTkFrame(outer, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=14)
+    review_frame = ctk.CTkFrame(outer, fg_color="transparent", corner_radius=0)
     review_frame.pack(fill="both", expand=True)
-    _build_reason_bar(review_frame, group)
-    table = widgets.scrollable_frame(review_frame)
-    _build_record_columns(app, table, group)
-    _build_field_rows(app, table, group)
+    _build_reason_summary(review_frame, group)
+    _initialize_review_state(app, group)
+    if app.scan_mode == "multi":
+        _build_cross_source_review(app, review_frame, group)
+    else:
+        _build_single_source_review(app, review_frame, group)
     _build_review_actions(app, outer)
 
 
@@ -203,13 +210,73 @@ def _build_group_header(app, outer, group: MatchGroup):
     ctk.CTkLabel(top, text=f"{group.score:.0f}% MATCH", fg_color=widgets.COLORS["green_light"], text_color=widgets.COLORS["green"], font=widgets.FONTS["button_small"], width=110, height=32, corner_radius=8).pack(side="right")
 
 
-def _build_reason_bar(parent, group: MatchGroup):
-    reason = ctk.CTkFrame(parent, fg_color=widgets.COLORS["panel_subtle"], corner_radius=13)
-    reason.pack(fill="x", padx=2, pady=2)
-    ctk.CTkLabel(reason, text="●  " + "  •  ".join(group.reasons), text_color=widgets.COLORS["green"], font=widgets.FONTS["body"], anchor="w").pack(fill="x", padx=18, pady=11)
+def _build_reason_summary(parent, group: MatchGroup):
+    """Keep matching evidence available without taking space from the table."""
+    summary = ctk.CTkFrame(parent, fg_color=widgets.COLORS["paper"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=13)
+    summary.pack(fill="x", pady=(0, 12))
+    ctk.CTkLabel(
+        summary,
+        text="Match reason: " + ("  •  ".join(group.reasons) or "Candidate match"),
+        text_color=widgets.COLORS["green"],
+        font=widgets.FONTS["body_small"],
+        anchor="w",
+    ).pack(side="left", fill="x", expand=True, padx=(16, 10), pady=9)
+    info_button = widgets.button(
+        summary,
+        "Match info",
+        lambda: None,
+        "ghost_green",
+        width=104,
+    )
+    info_button.pack(side="right", padx=(0, 8), pady=4)
+    info_card = _build_match_info_card(parent, group)
+    pinned = {"value": False}
+
+    def pointer_is_over(widget) -> bool:
+        hovered = parent.winfo_containing(parent.winfo_pointerx(), parent.winfo_pointery())
+        while hovered is not None:
+            if hovered == widget:
+                return True
+            hovered = hovered.master
+        return False
+
+    def show_card(_event=None):
+        parent.update_idletasks()
+        y = summary.winfo_y() + summary.winfo_height() + 6
+        info_card.place(relx=1, x=0, y=y, anchor="ne")
+        info_card.lift()
+
+    def hide_card_if_clear():
+        if pinned["value"]:
+            return
+        if not pointer_is_over(info_button) and not pointer_is_over(info_card):
+            info_card.place_forget()
+
+    def schedule_hide(_event=None):
+        parent.after(120, hide_card_if_clear)
+
+    def toggle_card():
+        pinned["value"] = not pinned["value"]
+        if pinned["value"]:
+            show_card()
+        else:
+            info_card.place_forget()
+
+    def bind_hover_tree(widget):
+        widget.bind("<Enter>", show_card, add=True)
+        widget.bind("<Leave>", schedule_hide, add=True)
+        for child in widget.winfo_children():
+            bind_hover_tree(child)
+
+    info_button.configure(command=toggle_card)
+    info_button.bind("<Enter>", show_card)
+    info_button.bind("<Leave>", schedule_hide)
+    bind_hover_tree(info_card)
+
+
+def _match_evidence_lines(group: MatchGroup) -> list[str]:
     evidence_lines = []
-    evidence_items = list(group.evidence.items())
-    for (left_ref, right_ref), evidence in evidence_items[:5]:
+    for (left_ref, right_ref), evidence in group.evidence.items():
         pair_label = (
             f"{left_ref.source} row {left_ref.index + 2} ↔ "
             f"{right_ref.source} row {right_ref.index + 2}"
@@ -228,49 +295,60 @@ def _build_reason_bar(parent, group: MatchGroup):
         if unmatched:
             parts.append(f"unmatched: {unmatched}")
         parts.append(
-            f"coverage: {evidence.shorter_name_coverage:.0f}% short / {evidence.longer_name_coverage:.0f}% long"
+            f"coverage: {evidence.shorter_name_coverage:.0f}% short / "
+            f"{evidence.longer_name_coverage:.0f}% long"
         )
-        evidence_lines.append(f"{pair_label}: " + " • ".join(parts))
-    if len(evidence_items) > 5:
-        evidence_lines.append(f"+ {len(evidence_items) - 5} additional candidate pairs")
-    if evidence_lines:
-        ctk.CTkLabel(
-            reason,
-            text="\n".join(evidence_lines),
-            text_color=widgets.COLORS["muted"],
-            font=widgets.FONTS["body_small"],
-            anchor="w",
-            justify="left",
-            wraplength=1000,
-        ).pack(fill="x", padx=18, pady=(0, 11))
+        evidence_lines.append(f"{pair_label}\n" + " • ".join(parts))
+    return evidence_lines
 
 
-def _build_record_columns(app, table, group: MatchGroup):
-    table.grid_columnconfigure(0, minsize=150)
+def _build_match_info_card(parent, group: MatchGroup):
+    """Create the compact hover card used for on-demand match evidence."""
+    card = ctk.CTkFrame(
+        parent,
+        width=620,
+        height=286,
+        fg_color=widgets.COLORS["paper"],
+        border_color=widgets.COLORS["line"],
+        border_width=1,
+        corner_radius=12,
+    )
+    card.pack_propagate(False)
+    heading = ctk.CTkFrame(card, fg_color="transparent", corner_radius=0)
+    heading.pack(fill="x", padx=18, pady=(15, 4))
+    ctk.CTkLabel(heading, text="Match details", text_color=widgets.COLORS["ink"], font=widgets.FONTS["card_title"], anchor="w").pack(side="left")
+    ctk.CTkLabel(heading, text=f"{group.score:.0f}%", fg_color=widgets.COLORS["green_light"], text_color=widgets.COLORS["green"], font=widgets.FONTS["section"], height=26, corner_radius=7).pack(side="right", ipadx=8)
+    ctk.CTkLabel(card, text=" • ".join(group.reasons) or "Candidate match", text_color=widgets.COLORS["green"], font=widgets.FONTS["body_small"], anchor="w").pack(fill="x", padx=18, pady=(0, 10))
+    details = ctk.CTkTextbox(
+        card,
+        fg_color=widgets.COLORS["panel_subtle"],
+        border_color=widgets.COLORS["line"],
+        border_width=1,
+        text_color=widgets.COLORS["muted"],
+        font=widgets.FONTS["body_small"],
+        corner_radius=9,
+        wrap="word",
+    )
+    details.pack(fill="both", expand=True, padx=18, pady=(0, 16))
+    details.insert("1.0", "\n\n".join(_match_evidence_lines(group)) or "No detailed match evidence is available.")
+    details.configure(state="disabled")
+    return card
+
+
+def _initialize_review_state(app, group: MatchGroup):
+    """Create review variables independently from the visual table arrangement."""
     app.keep_vars = {}
     app.field_widgets = {}
-    preferred_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
-
-    for column, ref in enumerate(group.records, 1):
-        table.grid_columnconfigure(column, weight=1, minsize=280)
-        keep = tk.BooleanVar(value=ref == preferred_ref)
-        app.keep_vars[ref] = keep
-        header = ctk.CTkFrame(table, fg_color=widgets.COLORS["panel_header"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=0)
-        header.grid(row=0, column=column, sticky="nsew")
-        ctk.CTkCheckBox(header, text=f"ROW {ref.index + 2}", variable=keep, fg_color=widgets.COLORS["green"], hover_color=widgets.COLORS["green_hover"], border_color=widgets.COLORS["line"], text_color=widgets.COLORS["green"], font=widgets.FONTS["section"], corner_radius=6).pack(anchor="w", padx=12, pady=12)
-
-
-def _build_field_rows(app, table, group: MatchGroup):
     app.field_vars = {}
     app.edit_vars = {}
-    headers = app._headers_for_review(group)
     default_ref = next((ref for ref in group.records if ref.source == "truth"), group.records[0])
-    for row, field in enumerate(headers, 1):
-        ctk.CTkLabel(table, text=field, fg_color=widgets.COLORS["paper"], text_color=widgets.COLORS["muted"], font=widgets.FONTS["section"], anchor="w", corner_radius=0).grid(row=row, column=0, sticky="nsew", padx=12, pady=12)
+    for ref in group.records:
+        app.keep_vars[ref] = tk.BooleanVar(value=ref == default_ref)
+    for field in app._headers_for_review(group):
         preferred = _preferred_ref(app, group, field, default_ref)
-        var = tk.StringVar(value=f"{preferred.source}:{preferred.index}")
-        app.field_vars[field] = var
-        _build_field_values(app, table, group, row, field, var)
+        app.field_vars[field] = tk.StringVar(value=f"{preferred.source}:{preferred.index}")
+        for ref in group.records:
+            app.edit_vars[(ref, field)] = tk.StringVar(value=app._row_for(ref).get(field, ""))
 
 
 def _preferred_ref(app, group, field: str, default_ref: RecordRef) -> RecordRef:
@@ -279,41 +357,176 @@ def _preferred_ref(app, group, field: str, default_ref: RecordRef) -> RecordRef:
     return next((ref for ref in group.records if app._row_for(ref).get(field, "")), default_ref)
 
 
-def _build_field_values(app, table, group, row: int, field: str, variable: tk.StringVar):
-    for column, ref in enumerate(group.records, 1):
-        value = app._row_for(ref).get(field, "")
-        edit_variable = tk.StringVar(value=value)
-        app.edit_vars[(ref, field)] = edit_variable
-        bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
-        cell_frame = ctk.CTkFrame(table, fg_color=bg, corner_radius=0)
-        cell_frame.grid(row=row, column=column, sticky="nsew")
-        cell = ctk.CTkRadioButton(
-            cell_frame,
-            text="",
-            variable=variable,
-            value=f"{ref.source}:{ref.index}",
-            fg_color=widgets.COLORS["green"],
-            hover_color=widgets.COLORS["green_hover"],
-            border_color=widgets.COLORS["line"],
-            text_color=widgets.COLORS["ink"],
-            text_color_disabled=widgets.COLORS["muted"],
-            font=widgets.FONTS["body"],
-            width=28,
-        )
-        cell.pack(side="left", padx=(12, 4), pady=11)
-        entry = ctk.CTkEntry(
-            cell_frame,
-            textvariable=edit_variable,
-            state="normal" if app._review_field_editable(ref, field) else "disabled",
-            fg_color=widgets.COLORS["entry_bg"],
-            border_color=widgets.COLORS["line"],
-            text_color=widgets.COLORS["ink"],
-            font=widgets.FONTS["body"],
-            height=36,
-            corner_radius=8,
-        )
-        entry.pack(side="left", fill="x", expand=True, padx=(0, 12), pady=8)
-        app.field_widgets.setdefault(ref, []).append(cell)
+def _paired_review_fields(app) -> list[tuple[str, int, str | None, str | None]]:
+    """Pair cross-file fields by the same position used by the matcher."""
+    rows = []
+    seen = set()
+    sections = (
+        ("MATCH", app.truth.match_columns, app.dependent.match_columns),
+        ("REFERENCE", app.truth.reference_columns, app.dependent.reference_columns),
+    )
+    for role, truth_fields, dependent_fields in sections:
+        for position, (truth_field, dependent_field) in enumerate(
+            zip_longest(truth_fields, dependent_fields),
+            1,
+        ):
+            pair = (truth_field, dependent_field)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            rows.append((role, position, truth_field, dependent_field))
+    return rows
+
+
+def _build_cross_source_review(app, parent, group: MatchGroup):
+    truth_refs = [ref for ref in group.records if ref.source == "truth"]
+    dependent_refs = [ref for ref in group.records if ref.source == "dependent"]
+    rows = _paired_review_fields(app)
+    comparison_height = 116 + _REVIEW_ROW_HEIGHT * max(1, len(rows)) + (18 if max(len(truth_refs), len(dependent_refs)) > 1 else 0)
+    comparison = ctk.CTkFrame(parent, height=comparison_height, fg_color="transparent", corner_radius=0)
+    comparison.pack(fill="x")
+    comparison.grid_propagate(False)
+    comparison.grid_rowconfigure(0, weight=1)
+    if len(truth_refs) > 1:
+        comparison.grid_columnconfigure(0, weight=1, uniform="review_sources")
+        comparison.grid_columnconfigure(1, weight=1, uniform="review_sources")
+    else:
+        comparison.grid_columnconfigure(0, weight=2, uniform="review_sources")
+        comparison.grid_columnconfigure(1, weight=3, uniform="review_sources")
+
+    _build_review_card(app, comparison, truth_refs, rows, "truth", 0, padx=(0, 7))
+    _build_review_card(app, comparison, dependent_refs, rows, "dependent", 1, padx=(7, 0))
+
+
+def _build_single_source_review(app, parent, group: MatchGroup):
+    rows = [("FIELD", position, field, field) for position, field in enumerate(app._headers_for_review(group), 1)]
+    comparison_height = 116 + _REVIEW_ROW_HEIGHT * max(1, len(rows)) + (18 if len(group.records) > 1 else 0)
+    comparison = ctk.CTkFrame(parent, height=comparison_height, fg_color="transparent", corner_radius=0)
+    comparison.pack(fill="x")
+    comparison.grid_propagate(False)
+    comparison.grid_rowconfigure(0, weight=1)
+    comparison.grid_columnconfigure(0, weight=1)
+    _build_review_card(app, comparison, group.records, rows, "single", 0)
+
+
+def _review_card_title(rows, source: str) -> str:
+    fields = []
+    for _role, _position, truth_field, dependent_field in rows:
+        field = truth_field if source in ("truth", "single") else dependent_field
+        if field and field not in fields:
+            fields.append(field)
+    return " / ".join(fields) or "Unmapped fields"
+
+
+def _build_review_card(app, parent, refs: list[RecordRef], rows, source: str, column: int, padx=0):
+    """Render one source as a self-contained field-and-record card."""
+    card = ctk.CTkFrame(
+        parent,
+        width=1,
+        height=1,
+        fg_color=widgets.COLORS["paper"],
+        border_color=widgets.COLORS["line"],
+        border_width=1,
+        corner_radius=12,
+    )
+    card.grid(row=0, column=column, sticky="nsew", padx=padx)
+    card.pack_propagate(False)
+
+    heading = ctk.CTkFrame(card, height=52, fg_color="transparent", corner_radius=0)
+    heading.pack(fill="x", padx=16)
+    heading.pack_propagate(False)
+    ctk.CTkLabel(
+        heading,
+        text=_review_card_title(rows, source),
+        text_color=widgets.COLORS["green"] if source == "truth" else widgets.COLORS["ink"],
+        font=widgets.FONTS["card_title"],
+        anchor="w",
+    ).pack(side="left", fill="y")
+    source_label = {"truth": "Truth", "dependent": "Dependent", "single": "Review"}[source]
+    row_label = "row" if len(refs) == 1 else "rows"
+    ctk.CTkLabel(
+        heading,
+        text=f"{source_label}  ·  {len(refs)} {row_label}",
+        fg_color=widgets.COLORS["green_light"] if source == "truth" else widgets.COLORS["panel_alt"],
+        text_color=widgets.COLORS["green"] if source == "truth" else widgets.COLORS["muted"],
+        font=widgets.FONTS["body_tiny"],
+        height=26,
+        corner_radius=7,
+    ).pack(side="right", pady=13, ipadx=8)
+
+    body = ctk.CTkFrame(card, fg_color=widgets.COLORS["paper"], corner_radius=0)
+    body.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+    if len(refs) <= 1:
+        table = ctk.CTkFrame(body, fg_color=widgets.COLORS["paper"], corner_radius=0)
+        table.pack(side="left", fill="both", expand=True)
+    else:
+        table = widgets.horizontal_scrollable_frame(body)
+    if not refs:
+        ctk.CTkLabel(table, text="No rows in this section", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body"], width=240).grid(row=0, column=0, padx=18, pady=18)
+        return
+    for column, ref in enumerate(refs):
+        table.grid_columnconfigure(column, minsize=_REVIEW_RECORD_WIDTH, weight=0)
+        _build_record_header(app, table, ref, column, source)
+        for row, (_role, _position, truth_field, dependent_field) in enumerate(rows, 1):
+            field = truth_field if source in ("truth", "single") else dependent_field
+            _build_review_cell(app, table, ref, field, row, column)
+
+
+def _build_record_header(app, table, ref: RecordRef, column: int, source: str):
+    header = ctk.CTkFrame(table, height=_REVIEW_HEADER_HEIGHT, fg_color=widgets.COLORS["truth_header"] if source == "truth" else widgets.COLORS["panel_header"], border_color=widgets.COLORS["line"], border_width=1, corner_radius=0)
+    header.grid(row=0, column=column, sticky="nsew")
+    header.grid_propagate(False)
+    ctk.CTkCheckBox(
+        header,
+        text=f"ROW {ref.index + 2}",
+        variable=app.keep_vars[ref],
+        fg_color=widgets.COLORS["green"],
+        hover_color=widgets.COLORS["green_hover"],
+        border_color=widgets.COLORS["line"],
+        text_color=widgets.COLORS["green"],
+        font=widgets.FONTS["section"],
+        corner_radius=6,
+    ).pack(anchor="w", padx=12, pady=12)
+    table.grid_rowconfigure(0, minsize=_REVIEW_HEADER_HEIGHT)
+
+
+def _build_review_cell(app, table, ref: RecordRef, field: str | None, row: int, column: int):
+    bg = widgets.COLORS["paper"] if row % 2 else widgets.COLORS["panel_subtle"]
+    cell_frame = ctk.CTkFrame(table, height=_REVIEW_ROW_HEIGHT, fg_color=bg, corner_radius=0)
+    cell_frame.grid(row=row, column=column, sticky="nsew")
+    cell_frame.grid_propagate(False)
+    table.grid_rowconfigure(row, minsize=_REVIEW_ROW_HEIGHT)
+    if field is None:
+        ctk.CTkLabel(cell_frame, text="Not mapped", text_color=widgets.COLORS["muted"], font=widgets.FONTS["body_small"]).pack(fill="both", expand=True, padx=12)
+        return
+    cell = ctk.CTkRadioButton(
+        cell_frame,
+        text="",
+        variable=app.field_vars[field],
+        value=f"{ref.source}:{ref.index}",
+        fg_color=widgets.COLORS["green"],
+        hover_color=widgets.COLORS["green_hover"],
+        border_color=widgets.COLORS["line"],
+        text_color=widgets.COLORS["ink"],
+        text_color_disabled=widgets.COLORS["muted"],
+        font=widgets.FONTS["body"],
+        width=28,
+    )
+    cell.pack(side="left", padx=(12, 4), pady=11)
+    entry = ctk.CTkEntry(
+        cell_frame,
+        textvariable=app.edit_vars[(ref, field)],
+        state="normal" if app._review_field_editable(ref, field) else "disabled",
+        fg_color=widgets.COLORS["entry_bg"],
+        border_color=widgets.COLORS["line"],
+        text_color=widgets.COLORS["ink"],
+        font=widgets.FONTS["body"],
+        height=36,
+        corner_radius=8,
+    )
+    entry.pack(side="left", fill="x", expand=True, padx=(0, 12), pady=8)
+    app.field_widgets.setdefault(ref, []).append(cell)
 
 
 def _refresh_field_choices(app):
@@ -329,9 +542,17 @@ def _refresh_field_choices(app):
     for field, variable in app.field_vars.items():
         source, index = variable.get().split(":", 1)
         current = RecordRef(source, int(index))
-        if current in selected_refs:
+        valued_fallback = next(
+            (ref for ref in selected if app.edit_vars[(ref, field)].get()),
+            None,
+        )
+        current_has_value = (
+            current in selected_refs
+            and bool(app.edit_vars[(current, field)].get())
+        )
+        if current_has_value or (current in selected_refs and valued_fallback is None):
             continue
-        fallback = next((ref for ref in selected if app.edit_vars[(ref, field)].get()), preferred)
+        fallback = valued_fallback or preferred
         variable.set(f"{fallback.source}:{fallback.index}")
 
 
