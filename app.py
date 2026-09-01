@@ -1,35 +1,35 @@
 from __future__ import annotations
 
-import tkinter as tk
+import sys
 
-import customtkinter as ctk
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 from engine import MatchGroup, RecordRef, Ruleset, TokenStat
-from ui import shell, widgets
-from ui.events import AppEvents
+from ui import shell
+from ui.actions import AppActions
 
 
 class CSVSource:
     """Loaded CSV state used by the application."""
 
-    def __init__(self, role: str):
+    def __init__(self, role: str) -> None:
         self.role = role
         self.path = ""
         self.headers: list[str] = []
         self.rows: list[dict[str, str]] = []
         self.match_columns: list[str] = []
         self.reference_columns: list[str] = []
+        self.path_input = None
 
 
-class ScrubberApp(AppEvents, ctk.CTk):
+class ScrubberApp(AppActions, QMainWindow):
     """Application composition, initialization, and shared state."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.title("CSV Scrubber")
-        self.geometry("1320x860")
-        self.minsize(1040, 700)
-        self.configure(fg_color=widgets.COLORS["bg"])
+        self.setWindowTitle("CSV Scrubber")
+        self.resize(1320, 860)
+        self.setMinimumSize(1040, 700)
 
         self.rules = Ruleset()
         self.single = CSVSource("single")
@@ -40,15 +40,15 @@ class ScrubberApp(AppEvents, ctk.CTk):
         self.groups: list[MatchGroup] = []
         self.group_index = 0
         self.decisions: dict[int, dict] = {}
-        self.edit_vars: dict[tuple[RecordRef, str], tk.StringVar] = {}
+        self.edit_inputs = {}
         self.token_stats: list[TokenStat] = []
-        self.token_weight_vars: dict[str, tk.StringVar] = {}
+        self.token_weight_inputs = {}
+        self.token_weight_drafts: dict[str, str] = {}
 
         shell.setup_styles(self)
         shell.build(self)
         self.show_workspace()
 
-    # Application state and data helpers
     def _row_for(self, ref: RecordRef) -> dict[str, str]:
         if ref.source == "single":
             return self.single.rows[ref.index]
@@ -59,30 +59,29 @@ class ScrubberApp(AppEvents, ctk.CTk):
     def _headers_for_review(self, group: MatchGroup) -> list[str]:
         headers: list[str] = []
         for ref in group.records:
-            source = self.single if ref.source == "single" else self.truth if ref.source == "truth" else self.dependent
+            source = (
+                self.single
+                if ref.source == "single"
+                else self.truth
+                if ref.source == "truth"
+                else self.dependent
+            )
             for header in source.match_columns + source.reference_columns:
                 if header not in headers:
                     headers.append(header)
         return headers
 
     def _review_value_editable(self, ref: RecordRef) -> bool:
-        """Return whether a reviewed record's field values may be changed."""
         return ref.source in ("single", "truth")
 
     def _review_field_editable(self, ref: RecordRef, field: str) -> bool:
-        """Return whether a specific reviewed field may be changed."""
         if not self._review_value_editable(ref):
             return False
-        if ref.source == "single":
-            source = self.single
-        elif ref.source == "truth":
-            source = self.truth
-        else:
-            source = self.dependent
+        source = self.single if ref.source == "single" else self.truth
         return field in source.match_columns
 
     def _matching_values(self) -> list[str]:
-        def selected_cells(rows: list[dict[str, str]], columns: list[str]) -> list[str]:
+        def selected_cells(rows, columns) -> list[str]:
             return [
                 row.get(column, "")
                 for row in rows
@@ -91,19 +90,44 @@ class ScrubberApp(AppEvents, ctk.CTk):
             ]
 
         if self.scan_mode == "single":
-            return selected_cells(self.single.rows, self.single.match_columns)
-        return selected_cells(self.truth.rows, self.truth.match_columns) + selected_cells(
+            return selected_cells(
+                self.single.rows,
+                self.single.match_columns,
+            )
+        return selected_cells(
+            self.truth.rows,
+            self.truth.match_columns,
+        ) + selected_cells(
             self.dependent.rows,
             self.dependent.match_columns,
         )
 
     def _build_export(self):
-        sources = {"single": self.single.rows, "truth": self.truth.rows, "dependent": self.dependent.rows}
+        sources = {
+            "single": self.single.rows,
+            "truth": self.truth.rows,
+            "dependent": self.dependent.rows,
+        }
         if self.mode == "single":
-            headers, refs = list(self.single.headers), [RecordRef("single", index) for index in range(len(self.single.rows))]
+            headers = list(self.single.headers)
+            refs = [
+                RecordRef("single", index)
+                for index in range(len(self.single.rows))
+            ]
         else:
-            headers = list(self.truth.headers) + [header for header in self.dependent.headers if header not in self.truth.headers]
-            refs = [RecordRef("truth", index) for index in range(len(self.truth.rows))] + [RecordRef("dependent", index) for index in range(len(self.dependent.rows))]
+            headers = list(self.truth.headers) + [
+                header
+                for header in self.dependent.headers
+                if header not in self.truth.headers
+            ]
+            refs = [
+                RecordRef("truth", index)
+                for index in range(len(self.truth.rows))
+            ] + [
+                RecordRef("dependent", index)
+                for index in range(len(self.dependent.rows))
+            ]
+
         removed: set[RecordRef] = set()
         edited_rows: dict[RecordRef, dict[str, str]] = {}
         replacements: list[dict[str, str]] = []
@@ -116,15 +140,41 @@ class ScrubberApp(AppEvents, ctk.CTk):
                 action = "not_duplicate" if decision else "unreviewed"
             elif decision["action"] == "keep":
                 selected = set(decision["selected"])
-                removed.update(ref for ref in group.records if ref not in selected)
+                removed.update(
+                    ref for ref in group.records if ref not in selected
+                )
                 action = "keep_selected"
             else:
                 removed.update(group.records)
                 replacements.append(decision["canonical"])
                 action = "merge"
-            audit.append({"group": str(index + 1), "score": str(group.score), "action": action, "records": "; ".join(f"{ref.source}:row {ref.index + 2}" for ref in group.records)})
-        output = [dict(edited_rows.get(ref, sources[ref.source][ref.index])) for ref in refs if ref not in removed] + replacements
+            audit.append(
+                {
+                    "group": str(index + 1),
+                    "score": str(group.score),
+                    "action": action,
+                    "records": "; ".join(
+                        f"{ref.source}:row {ref.index + 2}"
+                        for ref in group.records
+                    ),
+                }
+            )
+        output = [
+            dict(edited_rows.get(ref, sources[ref.source][ref.index]))
+            for ref in refs
+            if ref not in removed
+        ] + replacements
         return headers, output, audit
 
+
+def main() -> int:
+    qt_app = QApplication.instance() or QApplication(sys.argv)
+    qt_app.setApplicationName("CSV Scrubber")
+    qt_app.setStyle("Fusion")
+    window = ScrubberApp()
+    window.show()
+    return qt_app.exec()
+
+
 if __name__ == "__main__":
-    ScrubberApp().mainloop()
+    raise SystemExit(main())

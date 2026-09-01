@@ -1,271 +1,297 @@
-from __future__ import annotations
+"""Reusable PySide6 widgets for the desktop interface."""
 
-from collections.abc import Callable
-import tkinter as tk
+from collections.abc import Callable, Iterable
 
-import customtkinter as ctk
+from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QPlainTextEdit,
+    QProgressDialog,
+    QPushButton,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .styles import BUTTON_STYLES, COLORS, FONTS
-
-
-# ============================================================================
-# Shared layout widgets
-# Purpose: provide reusable modern frames, cards, buttons, and scrolling.
-# Ownership: layout and widget construction only; no navigation or app state.
-# ============================================================================
-def clear_body(app):
-    for child in app.body.winfo_children():
-        child.destroy()
-
-
-def page(app, title: str, subtitle: str) -> ctk.CTkFrame:
-    """Clear the body and create a standard titled view container."""
-    clear_body(app)
-    outer = ctk.CTkFrame(app.body, fg_color="transparent", corner_radius=0)
-    outer.pack(fill="both", expand=True, padx=40, pady=32)
-    ctk.CTkLabel(outer, text=title, text_color=COLORS["ink"], font=FONTS["title"], anchor="w").pack(fill="x", anchor="w")
-    ctk.CTkLabel(outer, text=subtitle, text_color=COLORS["muted"], font=FONTS["body_large"], anchor="w").pack(fill="x", anchor="w", pady=(6, 24))
-    return outer
+from ui.styles import COLORS
 
 
-def card(parent) -> ctk.CTkFrame:
-    """Create a rounded, bordered content card."""
-    frame = ctk.CTkFrame(
-        parent,
-        fg_color=COLORS["paper"],
-        border_color=COLORS["line"],
-        border_width=1,
-        corner_radius=14,
-    )
-    frame.pack(fill="x", pady=(0, 16))
-    frame.grid_columnconfigure(1, weight=1)
+def clear_layout(layout) -> None:
+    """Delete every widget and nested layout from a layout."""
+    while layout.count():
+        item = layout.takeAt(0)
+        if item.widget() is not None:
+            item.widget().hide()
+            item.widget().deleteLater()
+        elif item.layout() is not None:
+            clear_layout(item.layout())
+
+
+def button(
+    text: str,
+    command: Callable | None = None,
+    variant: str = "secondary",
+    *,
+    checkable: bool = False,
+) -> QPushButton:
+    control = QPushButton(text)
+    control.setProperty("variant", variant)
+    control.setCursor(Qt.CursorShape.PointingHandCursor)
+    control.setCheckable(checkable)
+    if command is not None:
+        control.clicked.connect(command)
+    return control
+
+
+def page(app, title: str, subtitle: str = "") -> QVBoxLayout:
+    """Replace the page host contents and return the new page layout."""
+    clear_layout(app.body_layout)
+    host = QWidget()
+    host.setObjectName("page")
+    layout = QVBoxLayout(host)
+    layout.setContentsMargins(34, 28, 34, 24)
+    layout.setSpacing(14)
+
+    title_label = QLabel(title)
+    title_label.setObjectName("pageTitle")
+    layout.addWidget(title_label)
+    if subtitle:
+        subtitle_label = QLabel(subtitle)
+        subtitle_label.setObjectName("pageSubtitle")
+        subtitle_label.setWordWrap(True)
+        layout.addWidget(subtitle_label)
+    layout.addSpacing(8)
+    app.body_layout.addWidget(host)
+    return layout
+
+
+def card(parent: QWidget | None = None) -> QFrame:
+    frame = QFrame(parent)
+    frame.setObjectName("card")
+    frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     return frame
 
 
-def section_label(parent, text: str, bg: str, fg: str, **grid_kwargs):
-    label = ctk.CTkLabel(
-        parent,
-        text=text,
-        fg_color=bg,
-        text_color=fg,
-        font=FONTS["section"],
-        height=26,
-        corner_radius=7,
-    )
-    label.grid(**grid_kwargs)
+def badge(text: str, *, muted: bool = False) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName("badgeMuted" if muted else "badge")
+    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     return label
 
 
-def button(parent, text: str, command, style: str = "secondary", **kwargs):
-    """Create a consistently sized CustomTkinter button."""
-    options = dict(BUTTON_STYLES[style])
-    horizontal_padding = kwargs.pop("padx", 0)
-    vertical_padding = kwargs.pop("pady", 0)
-    options.update(kwargs)
-    options.setdefault("width", 196 if style == "nav" else max(92, len(text) * 8 + 28 + horizontal_padding))
-    if vertical_padding:
-        options["height"] = max(options.get("height", 34), vertical_padding * 2 + 20)
-    return ctk.CTkButton(parent, text=text, command=command, **options)
+def source_picker(app, source, title: str) -> QWidget:
+    """Create a file-source row with a native file chooser."""
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(10)
+
+    label = QLabel(title)
+    label.setObjectName("sectionTitle")
+    label.setFixedWidth(150)
+    path = QLineEdit(source.path or "")
+    path.setReadOnly(True)
+    path.setPlaceholderText("Choose a CSV file")
+    source.path_input = path
+    browse = button("Browse…", lambda: app.load_source(source), "secondary")
+
+    layout.addWidget(label)
+    layout.addWidget(path, 1)
+    layout.addWidget(browse)
+    return row
 
 
-def scrollable_frame(parent) -> ctk.CTkScrollableFrame:
-    """Create a modern scrollable content frame."""
-    frame = ctk.CTkScrollableFrame(
-        parent,
-        fg_color=COLORS["paper"],
-        corner_radius=0,
-        scrollbar_fg_color=COLORS["paper"],
-        scrollbar_button_color=COLORS["line"],
-        scrollbar_button_hover_color=COLORS["muted"],
-        orientation="vertical",
-    )
-    frame.pack(fill="both", expand=True, padx=2, pady=2)
-    return frame
+class ColumnSelectionDialog(QDialog):
+    """Small reusable dialog for choosing CSV columns."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        title: str,
+        headers: Iterable[str],
+        selected: Iterable[str],
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setModal(True)
+        self.resize(440, 520)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        prompt = QLabel("Select one or more columns.")
+        prompt.setObjectName("muted")
+        layout.addWidget(prompt)
+
+        selected_set = set(selected)
+        self.list_widget = QListWidget()
+        for header in headers:
+            item = QListWidgetItem(header)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(
+                Qt.CheckState.Checked
+                if header in selected_set
+                else Qt.CheckState.Unchecked
+            )
+            self.list_widget.addItem(item)
+        layout.addWidget(self.list_widget, 1)
+
+        controls = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Cancel
+            | QDialogButtonBox.StandardButton.Ok
+        )
+        controls.rejected.connect(self.reject)
+        controls.accepted.connect(self.accept)
+        layout.addWidget(controls)
+
+    def selected_columns(self) -> list[str]:
+        return [
+            self.list_widget.item(index).text()
+            for index in range(self.list_widget.count())
+            if self.list_widget.item(index).checkState() == Qt.CheckState.Checked
+        ]
 
 
-def horizontal_scrollable_frame(parent, **kwargs) -> ctk.CTkScrollableFrame:
-    """Create a content frame with an always-available horizontal scrollbar."""
-    options = {
-        "fg_color": COLORS["paper"],
-        "corner_radius": 0,
-        "scrollbar_fg_color": COLORS["paper"],
-        "scrollbar_button_color": COLORS["line"],
-        "scrollbar_button_hover_color": COLORS["muted"],
-        "orientation": "horizontal",
-    }
-    options.update(kwargs)
-    frame = ctk.CTkScrollableFrame(parent, **options)
-    frame.pack(fill="both", expand=True, padx=2, pady=2)
-    return frame
-
-
-# ============================================================================
-# Input controls
-# Purpose: build file, column, threshold, and progress controls for views.
-# Events: callbacks are supplied by app/events; widgets do not own workflows.
-# ============================================================================
-def source_picker(app, frame, source, label: str, row: int):
-    """Render a CSV path field and its browse action."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=(22, 14), pady=15)
-    path_var = tk.StringVar(value=source.path)
-    entry = ctk.CTkEntry(
-        frame,
-        textvariable=path_var,
-        state="disabled",
-        fg_color=COLORS["entry_bg"],
-        border_color=COLORS["line"],
-        text_color=COLORS["ink"],
-        font=FONTS["body"],
-        height=40,
-        corner_radius=9,
-    )
-    entry.grid(row=row, column=1, sticky="ew", pady=15)
-    button(frame, "Browse…", lambda: app.load_source(source, path_var), "secondary").grid(row=row, column=2, padx=18, pady=15)
+def choose_columns(
+    parent: QWidget,
+    title: str,
+    headers: Iterable[str],
+    selected: Iterable[str],
+) -> list[str] | None:
+    dialog = ColumnSelectionDialog(parent, title, headers, selected)
+    if dialog.exec() != QDialog.DialogCode.Accepted:
+        return None
+    return dialog.selected_columns()
 
 
 def column_picker(
-    frame,
-    label: str,
-    row: int,
-    columns: list[str],
-    selected_columns: list[str],
-    popup_title: str,
-    popup_subtitle: str,
-    on_apply: Callable[[list[str]], None],
-):
-    """Render a reusable selected-column picker populated by the calling view."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=(22, 14), pady=15)
-    picker = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
-    picker.grid(row=row, column=1, columnspan=2, sticky="ew", padx=(0, 18), pady=10)
-    picker.grid_columnconfigure(0, weight=1)
+    app,
+    source,
+    title: str,
+    attribute: str,
+    *,
+    button_text: str = "Choose columns",
+) -> QWidget:
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(10)
 
-    if not columns:
-        ctk.CTkLabel(picker, text="Load a CSV to choose columns.", text_color=COLORS["muted"], font=FONTS["body_small"], anchor="w").grid(row=0, column=0, sticky="ew")
-        return
+    label = QLabel(title)
+    label.setObjectName("sectionTitle")
+    label.setFixedWidth(150)
+    current = QLabel(", ".join(getattr(source, attribute)) or "None selected")
+    current.setObjectName("muted")
+    current.setWordWrap(True)
 
-    selected = ", ".join(selected_columns) if selected_columns else f"No {label.lower()} selected"
-    ctk.CTkLabel(
-        picker,
-        text=selected,
-        text_color=COLORS["ink"] if selected_columns else COLORS["muted"],
-        font=FONTS["body"],
-        anchor="w",
-        justify="left",
-        wraplength=430,
-    ).grid(row=0, column=0, sticky="ew", padx=(0, 12))
-    button(
-        picker,
-        "Choose columns…",
-        lambda: column_selection_popup(
-            picker.winfo_toplevel(),
-            title=popup_title,
-            subtitle=popup_subtitle,
-            columns=columns,
-            selected_columns=selected_columns,
-            on_apply=on_apply,
-        ),
-        "secondary",
-    ).grid(row=0, column=1, sticky="e")
+    def open_dialog() -> None:
+        chosen = choose_columns(
+            app,
+            title,
+            source.headers,
+            getattr(source, attribute),
+        )
+        if chosen is not None:
+            app.apply_column_selection(source, attribute, chosen)
+
+    control = button(button_text, open_dialog, "secondary")
+    control.setEnabled(bool(source.headers))
+    layout.addWidget(label)
+    layout.addWidget(current, 1)
+    layout.addWidget(control)
+    return row
 
 
-def column_selection_popup(parent, *, title: str, subtitle: str, columns: list[str], selected_columns: list[str], on_apply: Callable[[list[str]], None]):
-    """Render a generic column-selection popup from supplied view data."""
-    dialog = ctk.CTkToplevel(parent)
-    dialog.title(title)
-    dialog.geometry("560x620")
-    dialog.minsize(460, 420)
-    dialog.configure(fg_color=COLORS["bg"])
-    dialog.transient(parent)
-    dialog.grab_set()
-    dialog.after(50, dialog.focus_force)
-
-    ctk.CTkLabel(dialog, text=title, text_color=COLORS["ink"], font=FONTS["card_title"], anchor="w").pack(fill="x", padx=28, pady=(26, 4))
-    ctk.CTkLabel(dialog, text=subtitle, text_color=COLORS["muted"], font=FONTS["body"], anchor="w", justify="left", wraplength=500).pack(fill="x", padx=28, pady=(0, 18))
-
-    body = ctk.CTkFrame(dialog, fg_color=COLORS["paper"], border_color=COLORS["line"], border_width=1, corner_radius=14)
-    body.pack(fill="both", expand=True, padx=28)
-    columns_frame = scrollable_frame(body)
-    columns_frame.grid_columnconfigure(0, weight=1)
-    variables = {}
-    for index, column in enumerate(columns):
-        variable = tk.BooleanVar(value=column in selected_columns)
-        variables[column] = variable
-        ctk.CTkCheckBox(
-            columns_frame,
-            text=column,
-            variable=variable,
-            text_color=COLORS["ink"],
-            fg_color=COLORS["green"],
-            hover_color=COLORS["green_hover"],
-            border_color=COLORS["line"],
-            font=FONTS["body"],
-            corner_radius=6,
-        ).grid(row=index, column=0, sticky="w", padx=18, pady=8)
-
-    actions = ctk.CTkFrame(dialog, fg_color="transparent", corner_radius=0)
-    actions.pack(fill="x", padx=28, pady=20)
-
-    def apply_columns():
-        on_apply([column for column in columns if variables[column].get()])
-        dialog.destroy()
-
-    button(actions, "Cancel", dialog.destroy, "ghost").pack(side="right", padx=(9, 0))
-    apply_columns_button(actions, apply_columns).pack(side="right")
+def progress_dialog(parent: QWidget, text: str) -> QProgressDialog:
+    dialog = QProgressDialog(text, "", 0, 0, parent)
+    dialog.setWindowTitle("CSV Scrubber")
+    dialog.setCancelButton(None)
+    dialog.setWindowModality(Qt.WindowModality.WindowModal)
+    dialog.setMinimumDuration(0)
+    dialog.setAutoClose(False)
+    dialog.setAutoReset(False)
+    dialog.show()
+    return dialog
 
 
-def apply_columns_button(parent, command):
-    """Render the standard column-selection apply button."""
-    return button(parent, "Apply columns", command, "primary_small")
+class MatchInfoPopover(QFrame):
+    def __init__(self, owner: QWidget, text: str) -> None:
+        super().__init__(owner, Qt.WindowType.ToolTip)
+        self.owner = owner
+        self.pinned = False
+        self.setObjectName("matchPopover")
+        self.setMinimumWidth(520)
+        self.setMaximumWidth(720)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(8)
+        title = QLabel("Match details")
+        title.setObjectName("sectionTitle")
+        layout.addWidget(title)
+        details = QPlainTextEdit(text)
+        details.setReadOnly(True)
+        details.setMinimumHeight(140)
+        details.setMaximumHeight(260)
+        layout.addWidget(details)
+
+    def show_below_owner(self) -> None:
+        point = self.owner.mapToGlobal(QPoint(0, self.owner.height() + 6))
+        screen = self.owner.screen().availableGeometry()
+        self.adjustSize()
+        x = min(point.x(), screen.right() - self.width())
+        y = min(point.y(), screen.bottom() - self.height())
+        self.move(max(screen.left(), x), max(screen.top(), y))
+        self.show()
+        self.raise_()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().leaveEvent(event)
+        if not self.pinned:
+            QTimer.singleShot(120, self.hide_if_unhovered)
+
+    def hide_if_unhovered(self) -> None:
+        if not self.pinned and not self.underMouse() and not self.owner.underMouse():
+            self.hide()
 
 
-def scale_row(frame, label: str, var: tk.IntVar, row: int, minimum: int = 60, maximum: int = 100):
-    """Render a labeled threshold slider and its current value."""
-    ctk.CTkLabel(frame, text=label, text_color=COLORS["muted"], font=FONTS["label"], anchor="w").grid(row=row, column=0, sticky="w", padx=22, pady=16)
-    scale = ctk.CTkSlider(
-        frame,
-        from_=minimum,
-        to=maximum,
-        number_of_steps=maximum - minimum,
-        variable=var,
-        fg_color=COLORS["progress_trough"],
-        progress_color=COLORS["green"],
-        button_color=COLORS["green"],
-        button_hover_color=COLORS["green_hover"],
-        height=18,
-    )
-    scale.grid(row=row, column=1, sticky="ew", pady=16)
-    ctk.CTkLabel(
-        frame,
-        textvariable=var,
-        fg_color=COLORS["green_light"],
-        text_color=COLORS["green"],
-        font=FONTS["label"],
-        width=58,
-        height=32,
-        corner_radius=8,
-    ).grid(row=row, column=2, padx=22)
+class MatchInfoButton(QPushButton):
+    """A hover card that can be pinned open with a click."""
 
+    def __init__(self, text: str, details: str, parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self.setProperty("variant", "link")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.popover = MatchInfoPopover(self, details)
+        self.clicked.connect(self.toggle_popover)
 
-def progress_overlay(app):
-    """Create and start the indeterminate scan-progress overlay."""
-    overlay = ctk.CTkFrame(
-        app.body,
-        fg_color=COLORS["paper"],
-        border_color=COLORS["line"],
-        border_width=1,
-        corner_radius=16,
-    )
-    overlay.place(relx=.5, rely=.45, anchor="center")
-    ctk.CTkLabel(overlay, text="Finding likely matches…", text_color=COLORS["ink"], font=FONTS["progress"]).pack(padx=44, pady=(28, 16))
-    bar = ctk.CTkProgressBar(
-        overlay,
-        mode="indeterminate",
-        width=320,
-        height=8,
-        fg_color=COLORS["progress_trough"],
-        progress_color=COLORS["green"],
-        corner_radius=6,
-    )
-    bar.pack(padx=44, pady=(0, 30))
-    bar.start()
-    return overlay
+    def enterEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().enterEvent(event)
+        self.popover.show_below_owner()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().leaveEvent(event)
+        if not self.popover.pinned:
+            QTimer.singleShot(120, self.popover.hide_if_unhovered)
+
+    def toggle_popover(self) -> None:
+        if self.popover.isVisible() and self.popover.pinned:
+            self.popover.pinned = False
+            self.popover.hide()
+        else:
+            self.popover.pinned = True
+            self.popover.show_below_owner()
+
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.Hide:
+            self.popover.pinned = False
+            self.popover.hide()
+        return super().event(event)

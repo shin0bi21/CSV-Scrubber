@@ -6,7 +6,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 
 - Single-file mode: choose one CSV, matching columns, and reference columns.
 - Multi-file mode: choose a source-of-truth CSV, a dependent CSV, and matching/reference columns in each.
-- Modern CustomTkinter interface with scalable controls and a focused Setup, Analyze, Review, and Settings workflow.
+- Native PySide6 interface with scalable controls and a focused Setup, Analyze, Review, Complete, and Settings workflow.
 - Match and reference column selections start empty; at least one match column is required to scan, while reference columns are optional.
 - Soft token-level fuzzy matching using RapidFuzz, with automatic frequency weighting and no hard-coded company, region, or abbreviation rules.
 - Analyze frequent tokens from the selected matching columns on the Analyze page and manually adjust their influence; reference columns never affect scoring.
@@ -30,11 +30,11 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - `engine/_05_scoring.py` scores candidates and records match evidence.
 - `engine/_06_grouping.py` creates connected review groups and reason labels.
 - `engine/_07_scans.py` orchestrates single-file and cross-file scans.
-- `ui/styles.py` contains colors, fonts, and button styles.
+- `ui/styles.py` contains colors and the shared Qt stylesheet.
 - `ui/shell.py` builds the application-level sidebar, topbar, and navigation.
-- `ui/widgets.py` contains reusable controls, including the shared column picker and selection popup.
-- `ui/views.py` builds the application screens and hydrates shared widgets with view-specific data and roles.
-- `ui/events.py` handles user actions, maps UI roles to engine state, and rehydrates views.
+- `ui/widgets.py` contains reusable controls, including the shared column picker and match-info hover card.
+- `ui/views/` contains one module for each application screen.
+- `ui/actions.py` handles semantic user actions and coordinates the UI with the engine.
 
 ## Run on Windows
 
@@ -58,9 +58,10 @@ The application follows the same high-level flow for every scan type:
 1. **Setup** — choose Single file or Multi-file, load CSVs, and select match/reference columns.
 2. **Analyze** — inspect common tokens and adjust their influence before scanning.
 3. **Review** — resolve the groups found by the scan.
-4. **Settings** — configure matching behavior before scanning.
+4. **Complete** — export the cleaned CSV and its audit log.
+5. **Settings** — configure matching behavior before scanning.
 
-Single-file and multi-file modes share the same column-selection UI. The picker receives the available columns, current selections, and a role (`match` or `reference`); the event layer maps that role to the appropriate engine field.
+Single-file and multi-file modes share the same column-selection UI. The picker updates the matching or reference-column state for its source.
 
 ## Settings
 
