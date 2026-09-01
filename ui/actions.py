@@ -45,11 +45,7 @@ class AppActions:
     """Actions that coordinate the views with engine and file operations."""
 
     def show_workspace(self, mode: str | None = None) -> None:
-        mode = mode or (
-            self.scan_mode
-            if self.scan_mode in ("single", "multi")
-            else "single"
-        )
+        mode = self.scan_mode if mode is None else mode
         self.mode = mode
         self.scan_mode = mode
         shell.set_nav(self, "setup")
@@ -63,14 +59,10 @@ class AppActions:
             else [self.truth, self.dependent]
         )
         if all(source.rows and source.match_columns for source in needed):
-            try:
-                self._apply_token_weight_inputs()
-                self.token_stats = analyze_tokens(
-                    self._matching_values(),
-                    self.rules,
-                )
-            except ValueError:
-                pass
+            self.token_stats = analyze_tokens(
+                self._matching_values(),
+                self.rules,
+            )
         views.render_analyze(self)
 
     def show_review(self) -> None:
@@ -115,10 +107,6 @@ class AppActions:
         attribute: str,
         selected_columns: list[str],
     ) -> None:
-        attribute = {
-            "match": "match_columns",
-            "reference": "reference_columns",
-        }.get(attribute, attribute)
         setattr(source, attribute, selected_columns)
         views.render_workspace(self, self.scan_mode)
 
@@ -192,26 +180,14 @@ class AppActions:
         QMessageBox.critical(self, "Scan failed", message)
 
     def _close_scan_progress(self) -> None:
-        progress = getattr(self, "_scan_progress", None)
-        if progress is not None:
-            progress.close()
-            progress.deleteLater()
+        self._scan_progress.close()
+        self._scan_progress.deleteLater()
         self._scan_progress = None
         self._scan_worker = None
 
-    def _review_ui_value(self, ref: RecordRef, field: str) -> str:
-        control = getattr(self, "edit_inputs", {}).get((ref, field))
-        if control is not None:
-            return control.text()
-        return self._row_for(ref).get(field, "")
-
     def _edited_row_from_ui(self, ref: RecordRef) -> dict[str, str]:
         row = dict(self._row_for(ref))
-        for (edited_ref, field), control in getattr(
-            self,
-            "edit_inputs",
-            {},
-        ).items():
+        for (edited_ref, field), control in self.edit_inputs.items():
             if (
                 edited_ref == ref
                 and self._review_field_editable(ref, field)
@@ -238,7 +214,7 @@ class AppActions:
                 if field not in canonical or not canonical[field]:
                     canonical[field] = value
 
-        for field, chosen in getattr(self, "field_choices", {}).items():
+        for field, chosen in self.field_choices.items():
             if chosen not in selected_refs:
                 chosen = next(
                     (
@@ -356,54 +332,35 @@ class AppActions:
         )
         views.render_analyze(self)
 
-    def save_rules(self) -> bool:
-        try:
-            review = self.review_input.value()
-            minimum = self.common_token_min_documents_input.value()
-        except AttributeError:
-            QMessageBox.warning(
-                self,
-                "Invalid settings",
-                "Open Settings before saving.",
-            )
-            return False
-        if not 60 <= review <= 100 or minimum < 1:
-            QMessageBox.warning(
-                self,
-                "Invalid settings",
-                "Review threshold must be 60–100 and the common-token "
-                "minimum must be at least 1.",
-            )
-            return False
-        self.rules.review_threshold = review
-        self.rules.common_token_min_documents = minimum
+    def _store_rules(self) -> None:
+        self.rules.review_threshold = self.review_input.value()
+        self.rules.common_token_min_documents = (
+            self.common_token_min_documents_input.value()
+        )
         for attribute, control in self.norm_inputs.items():
             setattr(self.rules, attribute, control.isChecked())
+
+    def save_rules(self) -> None:
+        self._store_rules()
         QMessageBox.information(
             self,
             "Settings saved",
             "The matching settings are active for new scans.",
         )
-        return True
 
     def _apply_token_weight_inputs(self) -> None:
-        for token, value in getattr(
-            self,
-            "token_weight_drafts",
-            {},
-        ).items():
+        for token, value in self.token_weight_drafts.items():
             value = value.strip().lower()
             if value in ("", "auto"):
                 self.rules.token_weights.pop(token, None)
                 continue
-            self.rules.token_weights[token] = min(
-                1.0,
-                max(0.0, float(value)),
-            )
+            weight = float(value)
+            if not 0 <= weight <= 1:
+                raise ValueError
+            self.rules.token_weights[token] = weight
 
     def export_rules(self) -> None:
-        if not self.save_rules():
-            return
+        self._store_rules()
         path, _selected_filter = QFileDialog.getSaveFileName(
             self,
             "Export matching settings",

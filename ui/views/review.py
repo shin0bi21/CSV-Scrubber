@@ -279,17 +279,6 @@ def _review_card(app, refs, rows, source: str) -> QFrame:
     )
     layout.addLayout(header)
 
-    if not refs:
-        empty = QLabel("No rows in this section")
-        empty.setObjectName("muted")
-        empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(empty, 1)
-        frame.review_height = 190
-        frame.setFixedHeight(frame.review_height)
-        frame.review_table = QTableWidget(frame)
-        frame.review_table.hide()
-        return frame
-
     table = QTableWidget(len(rows) + 1, len(refs))
     table.setObjectName("reviewTable")
     table.horizontalHeader().setVisible(False)
@@ -399,10 +388,7 @@ def _selection_changed(app) -> None:
 
 
 def _ui_value(app, ref: RecordRef, field: str) -> str:
-    control = app.edit_inputs.get((ref, field))
-    if control is not None:
-        return control.text()
-    return app._row_for(ref).get(field, "")
+    return app.edit_inputs[(ref, field)].text()
 
 
 def _refresh_field_choices(app) -> None:
@@ -421,7 +407,7 @@ def _refresh_field_choices(app) -> None:
         selected[0],
     )
     for field, current in list(app.field_choices.items()):
-        valid_controls = app.field_buttons.get(field, {})
+        valid_controls = app.field_buttons[field]
         candidates = [ref for ref in selected if ref in valid_controls]
         if not candidates:
             continue

@@ -46,7 +46,7 @@ def button(
     control.setCursor(Qt.CursorShape.PointingHandCursor)
     control.setCheckable(checkable)
     if command is not None:
-        control.clicked.connect(command)
+        control.clicked.connect(lambda _checked=False: command())
     return control
 
 
@@ -100,7 +100,6 @@ def source_picker(app, source, title: str) -> QWidget:
     path = QLineEdit(source.path or "")
     path.setReadOnly(True)
     path.setPlaceholderText("Choose a CSV file")
-    source.path_input = path
     browse = button("Browse…", lambda: app.load_source(source), "secondary")
 
     layout.addWidget(label)

@@ -19,7 +19,6 @@ class CSVSource:
         self.rows: list[dict[str, str]] = []
         self.match_columns: list[str] = []
         self.reference_columns: list[str] = []
-        self.path_input = None
 
 
 class ScrubberApp(AppActions, QMainWindow):
@@ -50,22 +49,22 @@ class ScrubberApp(AppActions, QMainWindow):
         self.show_workspace()
 
     def _row_for(self, ref: RecordRef) -> dict[str, str]:
-        if ref.source == "single":
-            return self.single.rows[ref.index]
-        if ref.source == "truth":
-            return self.truth.rows[ref.index]
-        return self.dependent.rows[ref.index]
+        sources = {
+            "single": self.single,
+            "truth": self.truth,
+            "dependent": self.dependent,
+        }
+        return sources[ref.source].rows[ref.index]
 
     def _headers_for_review(self, group: MatchGroup) -> list[str]:
         headers: list[str] = []
+        sources = {
+            "single": self.single,
+            "truth": self.truth,
+            "dependent": self.dependent,
+        }
         for ref in group.records:
-            source = (
-                self.single
-                if ref.source == "single"
-                else self.truth
-                if ref.source == "truth"
-                else self.dependent
-            )
+            source = sources[ref.source]
             for header in source.match_columns + source.reference_columns:
                 if header not in headers:
                     headers.append(header)
@@ -135,7 +134,7 @@ class ScrubberApp(AppActions, QMainWindow):
         for index, group in enumerate(self.groups):
             decision = self.decisions.get(index)
             if decision:
-                edited_rows.update(decision.get("edits", {}))
+                edited_rows.update(decision["edits"])
             if not decision or decision["action"] == "not_duplicate":
                 action = "not_duplicate" if decision else "unreviewed"
             elif decision["action"] == "keep":
@@ -168,7 +167,7 @@ class ScrubberApp(AppActions, QMainWindow):
 
 
 def main() -> int:
-    qt_app = QApplication.instance() or QApplication(sys.argv)
+    qt_app = QApplication(sys.argv)
     qt_app.setApplicationName("CSV Scrubber")
     qt_app.setStyle("Fusion")
     window = ScrubberApp()
