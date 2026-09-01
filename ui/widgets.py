@@ -77,7 +77,24 @@ def scrollable_frame(parent) -> ctk.CTkScrollableFrame:
         scrollbar_fg_color=COLORS["paper"],
         scrollbar_button_color=COLORS["line"],
         scrollbar_button_hover_color=COLORS["muted"],
+        orientation="vertical",
     )
+    frame.pack(fill="both", expand=True, padx=2, pady=2)
+    return frame
+
+
+def horizontal_scrollable_frame(parent, **kwargs) -> ctk.CTkScrollableFrame:
+    """Create a content frame with an always-available horizontal scrollbar."""
+    options = {
+        "fg_color": COLORS["paper"],
+        "corner_radius": 0,
+        "scrollbar_fg_color": COLORS["paper"],
+        "scrollbar_button_color": COLORS["line"],
+        "scrollbar_button_hover_color": COLORS["muted"],
+        "orientation": "horizontal",
+    }
+    options.update(kwargs)
+    frame = ctk.CTkScrollableFrame(parent, **options)
     frame.pack(fill="both", expand=True, padx=2, pady=2)
     return frame
 
