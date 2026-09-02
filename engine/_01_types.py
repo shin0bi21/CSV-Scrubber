@@ -8,6 +8,8 @@ class Ruleset:
     """User-controlled normalization, weighting, and review settings."""
 
     review_threshold: int = 82
+    auto_accept: bool = False
+    auto_accept_threshold: int = 95
     lowercase: bool = True
     remove_punctuation: bool = True
     common_token_min_documents: int = 3

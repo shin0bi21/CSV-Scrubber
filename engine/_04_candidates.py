@@ -6,19 +6,10 @@ from ._01_types import Ruleset
 from ._02_normalization import NormalizedValue
 
 
-CandidateValue = str | NormalizedValue
+def value_has_content(value: NormalizedValue) -> bool:
+    """Return whether a normalized row contains text."""
 
-
-def value_has_content(value: CandidateValue) -> bool:
-    """Return whether a scalar or per-column value contains text."""
-
-    return bool(value) if isinstance(value, str) else any(value)
-
-
-def as_columns(value: CandidateValue) -> NormalizedValue:
-    """Convert a legacy scalar value to the per-column representation."""
-
-    return (value,) if isinstance(value, str) else value
+    return any(value)
 
 
 def blocking_keys(
@@ -40,17 +31,18 @@ def blocking_keys(
 
 
 def candidate_pairs(
-    left_values: list[CandidateValue],
-    right_values: list[CandidateValue],
-    same_source: bool = False,
-    rules: Ruleset | None = None,
+    left_values: list[NormalizedValue],
+    right_values: list[NormalizedValue],
+    same_source: bool,
+    rules: Ruleset,
 ) -> set[tuple[int, int]]:
     """Return exhaustive or generically blocked non-empty candidate pairs."""
 
-    active_rules = rules or Ruleset(candidate_strategy="exhaustive")
-    strategy = active_rules.candidate_strategy.casefold()
+    strategy = rules.candidate_strategy.casefold()
     if strategy not in {"auto", "exhaustive", "blocked"}:
-        raise ValueError("candidate_strategy must be 'auto', 'exhaustive', or 'blocked'.")
+        raise ValueError(
+            "candidate_strategy must be 'auto', 'exhaustive', or 'blocked'."
+        )
 
     nonempty_left = [
         index for index, value in enumerate(left_values) if value_has_content(value)
@@ -64,7 +56,7 @@ def candidate_pairs(
         else len(nonempty_left) * len(nonempty_right)
     )
     exhaustive = strategy == "exhaustive" or (
-        strategy == "auto" and possible_count <= active_rules.exhaustive_pair_limit
+        strategy == "auto" and possible_count <= rules.exhaustive_pair_limit
     )
     if exhaustive:
         return {
@@ -77,8 +69,8 @@ def candidate_pairs(
     index: dict[tuple[int, str, str], set[int]] = {}
     for right in nonempty_right:
         for key in blocking_keys(
-            as_columns(right_values[right]),
-            active_rules.blocking_ngram_size,
+            right_values[right],
+            rules.blocking_ngram_size,
         ):
             index.setdefault(key, set()).add(right)
 
@@ -86,8 +78,8 @@ def candidate_pairs(
     for left in nonempty_left:
         matches: set[int] = set()
         for key in blocking_keys(
-            as_columns(left_values[left]),
-            active_rules.blocking_ngram_size,
+            left_values[left],
+            rules.blocking_ngram_size,
         ):
             matches.update(index.get(key, ()))
         for right in matches:

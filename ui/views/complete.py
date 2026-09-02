@@ -25,7 +25,7 @@ def render_complete(app) -> None:
     layout.addWidget(icon)
 
     copy = QVBoxLayout()
-    title = QLabel(f"{len(app.decisions)} duplicate groups reviewed")
+    title = QLabel(f"{len(app.decisions)} duplicate groups resolved")
     title.setObjectName("cardTitle")
     note = QLabel("Nothing is overwritten. Export creates new files.")
     note.setObjectName("muted")

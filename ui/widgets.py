@@ -2,20 +2,20 @@
 
 from collections.abc import Callable, Iterable
 
-from PySide6.QtCore import QEvent, QPoint, Qt, QTimer
+from PySide6.QtCore import QEvent, QPoint, QRectF, Qt, QTimer
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
+    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPlainTextEdit,
     QProgressDialog,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
@@ -87,7 +87,43 @@ def badge(text: str, *, muted: bool = False) -> QLabel:
     return label
 
 
-def source_picker(app, source, title: str) -> QWidget:
+def slider_row(
+    title: str,
+    value: int,
+    minimum: int,
+    maximum: int,
+    *,
+    suffix: str = "",
+) -> tuple[QWidget, QSlider]:
+    """Create a labeled integer slider with a live value badge."""
+
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(16)
+    label = QLabel(title)
+    label.setObjectName("muted")
+    label.setFixedWidth(210)
+    control = QSlider(Qt.Orientation.Horizontal)
+    control.setRange(minimum, maximum)
+    control.setSingleStep(1)
+    control.setValue(value)
+    current = badge(f"{value}{suffix}")
+    current.setMinimumWidth(64)
+    control.valueChanged.connect(
+        lambda new_value: current.setText(f"{new_value}{suffix}")
+    )
+    layout.addWidget(label)
+    layout.addWidget(control, 1)
+    layout.addWidget(current)
+    return row, control
+
+
+def source_picker(
+    title: str,
+    path_value: str,
+    on_browse: Callable[[], None],
+) -> QWidget:
     """Create a file-source row with a native file chooser."""
     row = QWidget()
     layout = QHBoxLayout(row)
@@ -97,10 +133,10 @@ def source_picker(app, source, title: str) -> QWidget:
     label = QLabel(title)
     label.setObjectName("sectionTitle")
     label.setFixedWidth(150)
-    path = QLineEdit(source.path or "")
+    path = QLineEdit(path_value)
     path.setReadOnly(True)
     path.setPlaceholderText("Choose a CSV file")
-    browse = button("Browse…", lambda: app.load_source(source), "secondary")
+    browse = button("Browse…", on_browse, "secondary")
 
     layout.addWidget(label)
     layout.addWidget(path, 1)
@@ -108,74 +144,256 @@ def source_picker(app, source, title: str) -> QWidget:
     return row
 
 
-class ColumnSelectionDialog(QDialog):
-    """Small reusable dialog for choosing CSV columns."""
+class PopoverCard(QFrame):
+    """Reusable anchored popup frame with a customizable content layout."""
 
     def __init__(
         self,
-        parent: QWidget,
+        owner: QWidget,
+        *,
+        width: int,
+        height: int | None = None,
+        window_type: Qt.WindowType = Qt.WindowType.Popup,
+    ) -> None:
+        super().__init__(owner, window_type)
+        self.owner = owner
+        self.setObjectName("popoverCard")
+        self.setFixedWidth(width)
+        if height is not None:
+            self.setFixedHeight(height)
+        self.content_layout = QVBoxLayout(self)
+        self.content_layout.setContentsMargins(18, 16, 18, 16)
+        self.content_layout.setSpacing(12)
+
+    def show_below_owner(self, *, align_right: bool = False) -> None:
+        self.adjustSize()
+        x_offset = self.owner.width() - self.width() if align_right else 0
+        below = self.owner.mapToGlobal(
+            QPoint(x_offset, self.owner.height() + 6)
+        )
+        above = self.owner.mapToGlobal(QPoint(x_offset, -self.height() - 6))
+        screen = self.owner.screen().availableGeometry()
+        x = min(max(screen.left(), below.x()), screen.right() - self.width())
+        y = (
+            above.y()
+            if below.y() + self.height() > screen.bottom()
+            else below.y()
+        )
+        self.move(x, max(screen.top(), y))
+        self.show()
+        self.raise_()
+
+
+class ColumnOption(QCheckBox):
+    """A full-row checkbox with a clear selected state."""
+
+    def __init__(self, column_name: str, checked: bool) -> None:
+        super().__init__()
+        self.column_name = column_name
+        self.setChecked(checked)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMinimumHeight(46)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
+
+    def hitButton(self, position: QPoint) -> bool:  # noqa: N802 - Qt API
+        return self.rect().contains(position)
+
+    def enterEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._paint_row(painter)
+        self._paint_checkbox(painter)
+        self._paint_label(painter)
+
+    def _paint_row(self, painter: QPainter) -> None:
+        row = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+        selected = self.isChecked()
+        background = (
+            COLORS["green_light"]
+            if selected
+            else COLORS["panel_subtle"]
+            if self.underMouse()
+            else COLORS["paper"]
+        )
+        border = COLORS["green"] if selected or self.hasFocus() else COLORS["line"]
+        painter.setPen(QPen(QColor(border), 1))
+        painter.setBrush(QColor(background))
+        painter.drawRoundedRect(row, 9, 9)
+
+    def _paint_checkbox(self, painter: QPainter) -> None:
+        selected = self.isChecked()
+        box = QRectF(15, (self.height() - 20) / 2, 20, 20)
+        border = COLORS["green"] if selected else COLORS["line"]
+        fill = COLORS["green"] if selected else COLORS["paper"]
+        painter.setPen(QPen(QColor(border), 1.5))
+        painter.setBrush(QColor(fill))
+        painter.drawRoundedRect(box, 5, 5)
+        if selected:
+            self._paint_checkmark(painter, box)
+
+    @staticmethod
+    def _paint_checkmark(painter: QPainter, box: QRectF) -> None:
+        check = QPainterPath()
+        check.moveTo(box.left() + 5, box.center().y())
+        check.lineTo(box.left() + 9, box.bottom() - 5)
+        check.lineTo(box.right() - 4, box.top() + 5)
+        check_pen = QPen(QColor(COLORS["paper"]), 2.2)
+        check_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        check_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(check_pen)
+        painter.setBrush(
+            Qt.BrushStyle.NoBrush
+        )
+        painter.drawPath(check)
+
+    def _paint_label(self, painter: QPainter) -> None:
+        selected = self.isChecked()
+        font = self.font()
+        font.setBold(selected)
+        painter.setFont(font)
+        painter.setPen(
+            QColor(COLORS["green"] if selected else COLORS["ink"])
+        )
+        text_rect = QRectF(50, 0, self.width() - 64, self.height())
+        text = painter.fontMetrics().elidedText(
+            self.column_name,
+            Qt.TextElideMode.ElideRight,
+            int(text_rect.width()),
+        )
+        painter.drawText(
+            text_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            text,
+        )
+
+
+class ColumnSelectionPopover(PopoverCard):
+    """Anchored column selector built on the shared popover skeleton."""
+
+    def __init__(
+        self,
+        owner: QWidget,
         title: str,
         headers: Iterable[str],
         selected: Iterable[str],
+        on_apply: Callable[[list[str]], None],
     ) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(title)
-        self.setModal(True)
-        self.resize(440, 520)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        super().__init__(owner, width=500, height=520)
+        self.setObjectName("columnPopover")
+        self.on_apply = on_apply
+        self.initial_selected = set(selected)
+        layout = self.content_layout
+        layout.addLayout(self._header(title))
 
-        prompt = QLabel("Select one or more columns.")
-        prompt.setObjectName("muted")
-        layout.addWidget(prompt)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Filter columns…")
+        layout.addWidget(self.search)
 
-        selected_set = set(selected)
-        self.list_widget = QListWidget()
+        self.options: list[ColumnOption] = []
+        layout.addWidget(self._options_panel(headers), 1)
+        layout.addLayout(self._footer())
+        self.search.textChanged.connect(self._filter_options)
+        self._update_selection_count()
+
+    def _header(self, title: str) -> QHBoxLayout:
+        header = QHBoxLayout()
+        prompt = QLabel(title)
+        prompt.setObjectName("cardTitle")
+        self.selection_count = QLabel()
+        self.selection_count.setObjectName("badgeMuted")
+        header.addWidget(prompt)
+        header.addStretch()
+        header.addWidget(self.selection_count)
+        return header
+
+    def _options_panel(self, headers: Iterable[str]) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        option_host = QWidget()
+        option_layout = QVBoxLayout(option_host)
+        option_layout.setContentsMargins(2, 2, 2, 2)
+        option_layout.setSpacing(7)
         for header in headers:
-            item = QListWidgetItem(header)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(
-                Qt.CheckState.Checked
-                if header in selected_set
-                else Qt.CheckState.Unchecked
+            option = ColumnOption(header, header in self.initial_selected)
+            option.toggled.connect(
+                lambda _checked: self._update_selection_count()
             )
-            self.list_widget.addItem(item)
-        layout.addWidget(self.list_widget, 1)
+            self.options.append(option)
+            option_layout.addWidget(option)
+        option_layout.addStretch()
+        scroll.setWidget(option_host)
+        return scroll
 
-        controls = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Cancel
-            | QDialogButtonBox.StandardButton.Ok
+    def _footer(self) -> QHBoxLayout:
+        footer = QHBoxLayout()
+        footer.addWidget(button("Select all", self._select_all, "ghost"))
+        footer.addWidget(button("Clear", self._clear, "ghost"))
+        footer.addStretch()
+        footer.addWidget(button("Cancel", self.hide, "secondary"))
+        footer.addWidget(button("Apply columns", self._apply, "primary"))
+        return footer
+
+    def open(self) -> None:
+        self.search.clear()
+        self.show_below_owner(align_right=True)
+        self.search.setFocus()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API
+        super().hideEvent(event)
+        for option in self.options:
+            option.setChecked(option.column_name in self.initial_selected)
+
+    def _filter_options(self, query: str) -> None:
+        query = query.strip().casefold()
+        for option in self.options:
+            option.setVisible(query in option.column_name.casefold())
+
+    def _select_all(self) -> None:
+        for option in self.options:
+            option.setChecked(True)
+
+    def _clear(self) -> None:
+        for option in self.options:
+            option.setChecked(False)
+
+    def _apply(self) -> None:
+        selected = self.selected_columns()
+        self.initial_selected = set(selected)
+        self.hide()
+        self.on_apply(selected)
+
+    def _update_selection_count(self) -> None:
+        selected = sum(option.isChecked() for option in self.options)
+        self.selection_count.setText(
+            f"{selected} of {len(self.options)} selected"
         )
-        controls.rejected.connect(self.reject)
-        controls.accepted.connect(self.accept)
-        layout.addWidget(controls)
 
     def selected_columns(self) -> list[str]:
         return [
-            self.list_widget.item(index).text()
-            for index in range(self.list_widget.count())
-            if self.list_widget.item(index).checkState() == Qt.CheckState.Checked
+            option.column_name
+            for option in self.options
+            if option.isChecked()
         ]
 
 
-def choose_columns(
-    parent: QWidget,
+def column_picker(
     title: str,
     headers: Iterable[str],
     selected: Iterable[str],
-) -> list[str] | None:
-    dialog = ColumnSelectionDialog(parent, title, headers, selected)
-    if dialog.exec() != QDialog.DialogCode.Accepted:
-        return None
-    return dialog.selected_columns()
-
-
-def column_picker(
-    app,
-    source,
-    title: str,
-    attribute: str,
+    on_apply: Callable[[list[str]], None],
     *,
     button_text: str = "Choose columns",
 ) -> QWidget:
@@ -187,22 +405,23 @@ def column_picker(
     label = QLabel(title)
     label.setObjectName("sectionTitle")
     label.setFixedWidth(150)
-    current = QLabel(", ".join(getattr(source, attribute)) or "None selected")
+    headers = list(headers)
+    selected = list(selected)
+    current = QLabel(", ".join(selected) or "None selected")
     current.setObjectName("muted")
     current.setWordWrap(True)
 
-    def open_dialog() -> None:
-        chosen = choose_columns(
-            app,
-            title,
-            source.headers,
-            getattr(source, attribute),
-        )
-        if chosen is not None:
-            app.apply_column_selection(source, attribute, chosen)
-
-    control = button(button_text, open_dialog, "secondary")
-    control.setEnabled(bool(source.headers))
+    control = button(button_text, variant="secondary")
+    control.setEnabled(bool(headers))
+    popover = ColumnSelectionPopover(
+        control,
+        title,
+        headers,
+        selected,
+        on_apply,
+    )
+    control.popover = popover
+    control.clicked.connect(lambda _checked=False: popover.open())
     layout.addWidget(label)
     layout.addWidget(current, 1)
     layout.addWidget(control)
@@ -221,18 +440,18 @@ def progress_dialog(parent: QWidget, text: str) -> QProgressDialog:
     return dialog
 
 
-class MatchInfoPopover(QFrame):
+class MatchInfoPopover(PopoverCard):
     def __init__(self, owner: QWidget, text: str) -> None:
-        super().__init__(owner, Qt.WindowType.ToolTip)
-        self.owner = owner
+        super().__init__(
+            owner,
+            width=620,
+            window_type=Qt.WindowType.ToolTip,
+        )
         self.pinned = False
         self.setObjectName("matchPopover")
-        self.setMinimumWidth(520)
         self.setMaximumWidth(720)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        layout = self.content_layout
         title = QLabel("Match details")
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
@@ -241,16 +460,6 @@ class MatchInfoPopover(QFrame):
         details.setMinimumHeight(140)
         details.setMaximumHeight(260)
         layout.addWidget(details)
-
-    def show_below_owner(self) -> None:
-        point = self.owner.mapToGlobal(QPoint(0, self.owner.height() + 6))
-        screen = self.owner.screen().availableGeometry()
-        self.adjustSize()
-        x = min(point.x(), screen.right() - self.width())
-        y = min(point.y(), screen.bottom() - self.height())
-        self.move(max(screen.left(), x), max(screen.top(), y))
-        self.show()
-        self.raise_()
 
     def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API
         super().leaveEvent(event)

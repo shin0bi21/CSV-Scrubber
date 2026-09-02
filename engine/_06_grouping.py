@@ -51,11 +51,43 @@ def group_has_missing_direct_pair(
     return False
 
 
+def evidence_reasons(
+    evidence_items: list[MatchEvidence],
+) -> list[str]:
+    """Describe the token evidence that caused a fuzzy group."""
+
+    reasons: list[str] = []
+    if any(
+        evidence.exact_token_matches
+        and not evidence.fuzzy_token_matches
+        and (evidence.unmatched_left_tokens or evidence.unmatched_right_tokens)
+        and (
+            not evidence.unmatched_left_tokens
+            or not evidence.unmatched_right_tokens
+        )
+        for evidence in evidence_items
+    ):
+        reasons.append("Exact name contained in longer name")
+    if any(
+        len(evidence.exact_token_matches) >= 2
+        for evidence in evidence_items
+    ):
+        reasons.append("Multiple exact tokens matched")
+    if any(
+        len(evidence.fuzzy_token_matches) == 1
+        for evidence in evidence_items
+    ):
+        reasons.append("Single fuzzy token matched")
+    if any(evidence.fuzzy_token_matches for evidence in evidence_items):
+        reasons.append("Spelling variation")
+    return reasons
+
+
 def build_groups(
     refs: list[RecordRef],
     union_find: UnionFind,
     scores: dict[tuple[int, int], MatchEvidence],
-    exact_pairs: set[tuple[int, int]] | None = None,
+    exact_pairs: set[tuple[int, int]],
 ) -> list[MatchGroup]:
     """Convert connected accepted edges into sorted review groups."""
 
@@ -64,7 +96,6 @@ def build_groups(
     for ref in refs:
         buckets.setdefault(union_find.find(ref), []).append(ref)
 
-    exact_pairs = exact_pairs or set()
     groups: list[MatchGroup] = []
     for records in buckets.values():
         if len(records) < 2:
@@ -84,32 +115,7 @@ def build_groups(
         if group_pairs and group_pairs <= exact_pairs:
             reasons.append("Exact after normalization")
         else:
-            if any(
-                evidence.exact_token_matches
-                and not evidence.fuzzy_token_matches
-                and (evidence.unmatched_left_tokens or evidence.unmatched_right_tokens)
-                and (
-                    not evidence.unmatched_left_tokens
-                    or not evidence.unmatched_right_tokens
-                )
-                for evidence in group_evidence.values()
-            ):
-                reasons.append("Exact name contained in longer name")
-            if any(
-                len(evidence.exact_token_matches) >= 2
-                for evidence in group_evidence.values()
-            ):
-                reasons.append("Multiple exact tokens matched")
-            if any(
-                len(evidence.fuzzy_token_matches) == 1
-                for evidence in group_evidence.values()
-            ):
-                reasons.append("Single fuzzy token matched")
-            if any(
-                evidence.fuzzy_token_matches
-                for evidence in group_evidence.values()
-            ):
-                reasons.append("Spelling variation")
+            reasons.extend(evidence_reasons(list(group_evidence.values())))
             if len(records) > 2 and group_has_missing_direct_pair(
                 records,
                 position,

@@ -185,12 +185,40 @@ QCheckBox, QRadioButton {
     color: #17221C;
     spacing: 8px;
 }
+QSlider::groove:horizontal {
+    height: 8px;
+    background: #DDE5E0;
+    border-radius: 4px;
+}
+QSlider::sub-page:horizontal {
+    background: #267A55;
+    border-radius: 4px;
+}
+QSlider::handle:horizontal {
+    width: 20px;
+    margin: -6px 0;
+    background: #267A55;
+    border: 2px solid #FFFFFF;
+    border-radius: 10px;
+}
+QSlider::handle:horizontal:hover {
+    background: #1F6848;
+}
+QSlider::sub-page:horizontal:disabled,
+QSlider::handle:horizontal:disabled {
+    background: #AEBBB4;
+}
 QTableWidget {
     background: #FFFFFF;
     alternate-background-color: #F8FAF9;
     gridline-color: #DDE5E0;
     border: 0;
     selection-background-color: #E6F3EC;
+}
+QTableWidget#reviewTable {
+    border: 1px solid #DDE5E0;
+    border-radius: 8px;
+    gridline-color: #E7EDE9;
 }
 QHeaderView::section {
     background: #F4F8F5;
@@ -227,14 +255,20 @@ QScrollBar::add-line, QScrollBar::sub-line {
     width: 0;
     height: 0;
 }
+QFrame#popoverCard,
+QFrame#columnPopover,
 QFrame#matchPopover {
     background: #FFFFFF;
     border: 1px solid #DDE5E0;
     border-radius: 12px;
 }
-QSplitter::handle {
+QFrame#columnPopover QScrollArea,
+QFrame#columnPopover QScrollArea > QWidget > QWidget {
     background: transparent;
-    width: 14px;
+    border: 0;
+}
+QSplitter::handle {
+    background: #F3F6F4;
 }
 QToolTip {
     background: #17221C;

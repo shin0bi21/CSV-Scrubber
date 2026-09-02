@@ -54,21 +54,33 @@ def _source_contents(app, source, file_label: str) -> QWidget:
     layout = QVBoxLayout(content)
     layout.setContentsMargins(20, 20, 20, 20)
     layout.setSpacing(14)
-    layout.addWidget(widgets.source_picker(app, source, file_label))
     layout.addWidget(
-        widgets.column_picker(
-            app,
-            source,
-            "Match columns",
-            "match_columns",
+        widgets.source_picker(
+            file_label,
+            source.path,
+            lambda: app.load_source(source),
         )
     )
     layout.addWidget(
         widgets.column_picker(
-            app,
-            source,
+            "Match columns",
+            source.headers,
+            source.match_columns,
+            lambda selected: app.set_match_columns(
+                source,
+                selected,
+            ),
+        )
+    )
+    layout.addWidget(
+        widgets.column_picker(
             "Reference columns",
-            "reference_columns",
+            source.headers,
+            source.reference_columns,
+            lambda selected: app.set_reference_columns(
+                source,
+                selected,
+            ),
         )
     )
     return content

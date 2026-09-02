@@ -1,33 +1,21 @@
 from __future__ import annotations
 
-from difflib import SequenceMatcher
-
-try:
-    from rapidfuzz.fuzz import ratio as _rapid_ratio
-except ImportError:  # The app remains usable before dependencies are installed.
-    _rapid_ratio = None
+from rapidfuzz.fuzz import ratio as _rapid_ratio
 
 from ._01_types import MatchEvidence, Ruleset
+from ._02_normalization import NormalizedValue
 from ._03_weights import (
     automatic_token_weight,
     build_token_weights,
     token_document_frequencies,
 )
-from ._04_candidates import CandidateValue, as_columns, candidate_pairs
-
-
-def sequence_ratio(left: str, right: str) -> float:
-    """Return standard-library character similarity from 0 to 100."""
-
-    return SequenceMatcher(None, left, right).ratio() * 100
+from ._04_candidates import candidate_pairs
 
 
 def token_ratio(left: str, right: str) -> float:
-    """Compare two individual tokens using RapidFuzz or the fallback."""
+    """Compare two individual tokens using RapidFuzz."""
 
-    if _rapid_ratio is not None:
-        return float(_rapid_ratio(left, right))
-    return sequence_ratio(left, right)
+    return float(_rapid_ratio(left, right))
 
 
 def weighted_token_score(
@@ -125,16 +113,14 @@ def weighted_token_score(
 
 
 def column_aware_score(
-    left: CandidateValue,
-    right: CandidateValue,
+    left: NormalizedValue,
+    right: NormalizedValue,
     weights: dict[str, float],
     column_weights: tuple[float, ...] | None = None,
 ) -> MatchEvidence:
     """Score corresponding selected columns with optional field weights."""
 
-    left_columns = as_columns(left)
-    right_columns = as_columns(right)
-    column_count = max(len(left_columns), len(right_columns))
+    column_count = max(len(left), len(right))
     column_evidence: list[tuple[MatchEvidence, float]] = []
     for index in range(column_count):
         field_weight = (
@@ -144,8 +130,8 @@ def column_aware_score(
         )
         if field_weight <= 0:
             continue
-        left_value = left_columns[index] if index < len(left_columns) else ""
-        right_value = right_columns[index] if index < len(right_columns) else ""
+        left_value = left[index] if index < len(left) else ""
+        right_value = right[index] if index < len(right) else ""
         if not left_value and not right_value:
             continue
         if not left_value or not right_value:
@@ -202,8 +188,8 @@ def column_aware_score(
 
 
 def score_candidate_edges(
-    left_values: list[CandidateValue],
-    right_values: list[CandidateValue],
+    left_values: list[NormalizedValue],
+    right_values: list[NormalizedValue],
     rules: Ruleset,
     same_source: bool = False,
     column_names: list[str] | tuple[str, ...] | None = None,
@@ -215,7 +201,7 @@ def score_candidate_edges(
     scalar_values = [
         column_value
         for value in values
-        for column_value in as_columns(value)
+        for column_value in value
         if column_value
     ]
     frequencies = token_document_frequencies(scalar_values)

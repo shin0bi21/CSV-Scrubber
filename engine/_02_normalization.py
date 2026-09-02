@@ -23,13 +23,12 @@ def normalize(value: str, rules: Ruleset) -> str:
 
 def selected_values(
     rows: list[dict[str, str]],
-    columns: list[str] | str,
+    columns: list[str],
     rules: Ruleset,
 ) -> list[NormalizedValue]:
     """Normalize every selected column independently for each row."""
 
-    selected_columns = [columns] if isinstance(columns, str) else list(columns)
     return [
-        tuple(normalize(row.get(column, ""), rules) for column in selected_columns)
+        tuple(normalize(row.get(column, ""), rules) for column in columns)
         for row in rows
     ]

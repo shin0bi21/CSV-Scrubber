@@ -1,5 +1,6 @@
 """Side-by-side duplicate review with native horizontal table scrolling."""
 
+from dataclasses import dataclass
 from itertools import zip_longest
 
 from PySide6.QtCore import Qt
@@ -27,6 +28,15 @@ from ui import widgets
 RECORD_WIDTH = 250
 HEADER_HEIGHT = 50
 FIELD_ROW_HEIGHT = 62
+
+
+@dataclass(frozen=True)
+class ReviewFieldPair:
+    truth: str | None
+    dependent: str | None
+
+    def for_source(self, source: str) -> str | None:
+        return self.dependent if source == "dependent" else self.truth
 
 
 def render_review(app) -> None:
@@ -59,8 +69,8 @@ def render_review(app) -> None:
         splitter = _cross_source_tables(app, group)
     else:
         fields = [
-            ("FIELD", position, field, field)
-            for position, field in enumerate(app._headers_for_review(group), 1)
+            ReviewFieldPair(field, field)
+            for field in app._headers_for_review(group)
         ]
         splitter = QSplitter(Qt.Orientation.Horizontal)
         review_card = _review_card(app, group.records, fields, "single")
@@ -177,27 +187,23 @@ def _preferred_ref(
     )
 
 
-def _paired_review_fields(app):
-    rows = []
-    seen = set()
+def _paired_review_fields(app) -> list[ReviewFieldPair]:
+    rows: list[ReviewFieldPair] = []
+    seen: set[ReviewFieldPair] = set()
     sections = (
-        ("MATCH", app.truth.match_columns, app.dependent.match_columns),
-        (
-            "REFERENCE",
-            app.truth.reference_columns,
-            app.dependent.reference_columns,
-        ),
+        (app.truth.match_columns, app.dependent.match_columns),
+        (app.truth.reference_columns, app.dependent.reference_columns),
     )
-    for role, truth_fields, dependent_fields in sections:
-        for position, (truth_field, dependent_field) in enumerate(
-            zip_longest(truth_fields, dependent_fields),
-            1,
+    for truth_fields, dependent_fields in sections:
+        for truth_field, dependent_field in zip_longest(
+            truth_fields,
+            dependent_fields,
         ):
-            pair = (truth_field, dependent_field)
+            pair = ReviewFieldPair(truth_field, dependent_field)
             if pair in seen:
                 continue
             seen.add(pair)
-            rows.append((role, position, truth_field, dependent_field))
+            rows.append(pair)
     return rows
 
 
@@ -209,6 +215,7 @@ def _cross_source_tables(app, group: MatchGroup) -> QSplitter:
     fields = _paired_review_fields(app)
     splitter = QSplitter(Qt.Orientation.Horizontal)
     splitter.setChildrenCollapsible(False)
+    splitter.setHandleWidth(16)
     truth_card = _review_card(app, truth_refs, fields, "truth")
     dependent_card = _review_card(
         app,
@@ -236,20 +243,21 @@ def _cross_source_tables(app, group: MatchGroup) -> QSplitter:
     return splitter
 
 
-def _card_fields(rows, source: str) -> list[str]:
+def _card_fields(rows: list[ReviewFieldPair], source: str) -> list[str]:
     fields: list[str] = []
-    for _role, _position, truth_field, dependent_field in rows:
-        field = (
-            truth_field
-            if source in ("truth", "single")
-            else dependent_field
-        )
+    for row in rows:
+        field = row.for_source(source)
         if field and field not in fields:
             fields.append(field)
     return fields
 
 
-def _review_card(app, refs, rows, source: str) -> QFrame:
+def _review_card(
+    app,
+    refs: list[RecordRef],
+    rows: list[ReviewFieldPair],
+    source: str,
+) -> QFrame:
     frame = widgets.card()
     frame.setSizePolicy(
         QSizePolicy.Policy.Expanding,
@@ -258,7 +266,21 @@ def _review_card(app, refs, rows, source: str) -> QFrame:
     layout = QVBoxLayout(frame)
     layout.setContentsMargins(12, 10, 12, 12)
     layout.setSpacing(8)
+    layout.addLayout(_review_card_header(refs, rows, source))
 
+    table = _review_table(app, refs, rows, source)
+    layout.addWidget(table, 1)
+    frame.review_table = table
+    frame.review_height = table.height() + 64
+    frame.setFixedHeight(frame.review_height)
+    return frame
+
+
+def _review_card_header(
+    refs: list[RecordRef],
+    rows: list[ReviewFieldPair],
+    source: str,
+) -> QHBoxLayout:
     fields = _card_fields(rows, source)
     header = QHBoxLayout()
     title = QLabel(" / ".join(fields) or "Unmapped fields")
@@ -277,8 +299,15 @@ def _review_card(app, refs, rows, source: str) -> QFrame:
             muted=source == "dependent",
         )
     )
-    layout.addLayout(header)
+    return header
 
+
+def _review_table(
+    app,
+    refs: list[RecordRef],
+    rows: list[ReviewFieldPair],
+    source: str,
+) -> QTableWidget:
     table = QTableWidget(len(rows) + 1, len(refs))
     table.setObjectName("reviewTable")
     table.horizontalHeader().setVisible(False)
@@ -297,25 +326,13 @@ def _review_card(app, refs, rows, source: str) -> QFrame:
     table.setSizeAdjustPolicy(
         QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored
     )
-    visible_fields = max(1, min(len(rows), 6))
-    table_height = (
-        HEADER_HEIGHT + FIELD_ROW_HEIGHT * visible_fields + 22
-    )
-    table.setFixedHeight(table_height)
-
-    show_field_labels = len(rows) > 1
-    table.verticalHeader().setVisible(show_field_labels)
-    if show_field_labels:
-        labels = [""]
-        for _role, _position, truth_field, dependent_field in rows:
-            labels.append(
-                (
-                    truth_field
-                    if source in ("truth", "single")
-                    else dependent_field
-                )
-                or "Not mapped"
-            )
+    table.setFixedHeight(_review_table_height(len(rows)))
+    table.verticalHeader().setVisible(len(rows) > 1)
+    if len(rows) > 1:
+        labels = [""] + [
+            row.for_source(source) or "Not mapped"
+            for row in rows
+        ]
         table.setVerticalHeaderLabels(labels)
         table.verticalHeader().setMinimumWidth(105)
 
@@ -326,18 +343,17 @@ def _review_card(app, refs, rows, source: str) -> QFrame:
         table.setColumnWidth(column, RECORD_WIDTH)
         table.setCellWidget(0, column, _record_header(app, ref))
         for row_index, row in enumerate(rows, 1):
-            field = row[2] if source in ("truth", "single") else row[3]
             table.setCellWidget(
                 row_index,
                 column,
-                _review_cell(app, ref, field),
+                _review_cell(app, ref, row.for_source(source)),
             )
+    return table
 
-    layout.addWidget(table, 1)
-    frame.review_table = table
-    frame.review_height = table_height + 64
-    frame.setFixedHeight(frame.review_height)
-    return frame
+
+def _review_table_height(field_count: int) -> int:
+    visible_fields = max(1, min(field_count, 6))
+    return HEADER_HEIGHT + FIELD_ROW_HEIGHT * visible_fields + 22
 
 
 def _record_header(app, ref: RecordRef) -> QWidget:
@@ -346,7 +362,7 @@ def _record_header(app, ref: RecordRef) -> QWidget:
     layout.setContentsMargins(12, 4, 12, 4)
     control = QCheckBox(f"ROW {ref.index + 2}")
     control.setChecked(ref == app.default_review_ref)
-    control.toggled.connect(lambda: _selection_changed(app))
+    control.toggled.connect(lambda _checked: _selection_changed(app))
     app.keep_checks[ref] = control
     layout.addWidget(control)
     layout.addStretch()
@@ -367,8 +383,11 @@ def _review_cell(app, ref: RecordRef, field: str | None) -> QWidget:
     choice = QRadioButton()
     choice.setChecked(app.field_choices[field] == ref)
     choice.toggled.connect(
-        lambda checked, field=field, ref=ref: (
-            app.field_choices.__setitem__(field, ref) if checked else None
+        lambda checked, field=field, ref=ref: _field_choice_changed(
+            app,
+            field,
+            ref,
+            checked,
         )
     )
     app.field_groups[field].addButton(choice)
@@ -380,6 +399,16 @@ def _review_cell(app, ref: RecordRef, field: str | None) -> QWidget:
     layout.addWidget(choice)
     layout.addWidget(value, 1)
     return host
+
+
+def _field_choice_changed(
+    app,
+    field: str,
+    ref: RecordRef,
+    checked: bool,
+) -> None:
+    if checked:
+        app.field_choices[field] = ref
 
 
 def _selection_changed(app) -> None:

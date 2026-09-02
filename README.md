@@ -12,6 +12,7 @@ A local Windows desktop application for reviewing fuzzy duplicate matches and cr
 - Analyze frequent tokens from the selected matching columns on the Analyze page and manually adjust their influence; reference columns never affect scoring.
 - Generic normalization for Unicode, case, punctuation, and whitespace.
 - Review groups with confidence scores.
+- Optional automatic acceptance merges groups above a configurable confidence score and records that action in the audit file.
 - Edit values during review, then keep selected rows, merge selected rows into one record, or explicitly mark the group as not duplicated.
 - Review editing is limited to matching fields on main rows; dependent rows and reference fields are read-only.
 - Source-of-truth values are preferred by default in multi-file mode; missing truth values fall back to the dependent source.
@@ -69,6 +70,7 @@ The Settings screen deliberately does not select columns or review common tokens
 
 - algorithm selection and description,
 - similarity review threshold,
+- automatic acceptance toggle and confidence threshold,
 - minimum common-token row count,
 - lowercase conversion,
 - punctuation removal.

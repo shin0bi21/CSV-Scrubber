@@ -15,8 +15,8 @@ def find_single_file_groups(
 ) -> list[MatchGroup]:
     """Find likely duplicate groups within one CSV source."""
 
-    selected_columns = [columns] if isinstance(columns, str) else list(columns)
-    values = selected_values(rows, selected_columns, rules)
+    columns = [columns] if isinstance(columns, str) else list(columns)
+    values = selected_values(rows, columns, rules)
     refs = [RecordRef("single", index) for index in range(len(rows))]
     union_find = UnionFind(refs)
     edge_scores = score_candidate_edges(
@@ -24,7 +24,7 @@ def find_single_file_groups(
         values,
         rules,
         same_source=True,
-        column_names=selected_columns,
+        column_names=columns,
     )
     for left, right in edge_scores:
         union_find.union(refs[left], refs[right])
@@ -45,14 +45,18 @@ def find_cross_file_groups(
 ) -> list[MatchGroup]:
     """Find likely matches between source-of-truth and dependent CSVs."""
 
-    left_columns = [truth_columns] if isinstance(truth_columns, str) else list(truth_columns)
-    right_columns = (
+    truth_columns = (
+        [truth_columns]
+        if isinstance(truth_columns, str)
+        else list(truth_columns)
+    )
+    dependent_columns = (
         [dependent_columns]
         if isinstance(dependent_columns, str)
         else list(dependent_columns)
     )
-    left_values = selected_values(truth_rows, left_columns, rules)
-    right_values = selected_values(dependent_rows, right_columns, rules)
+    left_values = selected_values(truth_rows, truth_columns, rules)
+    right_values = selected_values(dependent_rows, dependent_columns, rules)
     left_refs = [RecordRef("truth", index) for index in range(len(truth_rows))]
     right_refs = [
         RecordRef("dependent", index) for index in range(len(dependent_rows))
@@ -62,12 +66,12 @@ def find_cross_file_groups(
 
     display_columns = [
         left if left == right else f"{left} / {right}"
-        for left, right in zip(left_columns, right_columns)
+        for left, right in zip(truth_columns, dependent_columns)
     ]
     cross_column_weights = dict(rules.column_weights)
     for left, right, display in zip(
-        left_columns,
-        right_columns,
+        truth_columns,
+        dependent_columns,
         display_columns,
     ):
         cross_column_weights[display] = rules.column_weights.get(

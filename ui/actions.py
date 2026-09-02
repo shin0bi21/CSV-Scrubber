@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
@@ -20,6 +21,14 @@ from engine import (
 )
 
 from . import shell, views, widgets
+
+
+@dataclass
+class ReviewDecision:
+    action: str
+    selected: list[RecordRef]
+    canonical: dict[str, str]
+    edits: dict[RecordRef, dict[str, str]]
 
 
 class WorkerSignals(QObject):
@@ -53,12 +62,7 @@ class AppActions:
 
     def show_analyze(self) -> None:
         shell.set_nav(self, "analyze")
-        needed = (
-            [self.single]
-            if self.scan_mode == "single"
-            else [self.truth, self.dependent]
-        )
-        if all(source.rows and source.match_columns for source in needed):
+        if self._scan_inputs_ready(self.scan_mode):
             self.token_stats = analyze_tokens(
                 self._matching_values(),
                 self.rules,
@@ -91,34 +95,32 @@ class AppActions:
         except Exception as exc:
             QMessageBox.critical(self, "Could not open CSV", str(exc))
             return
-        source.path = path
-        source.headers = headers
-        source.rows = rows
-        source.match_columns = []
-        source.reference_columns = []
+        source.replace_data(path, headers, rows)
         self.token_stats = []
         self.rules.token_weights.clear()
         self.token_weight_drafts.clear()
         views.render_workspace(self, self.scan_mode)
 
-    def apply_column_selection(
+    def set_match_columns(
         self,
         source,
-        attribute: str,
         selected_columns: list[str],
     ) -> None:
-        setattr(source, attribute, selected_columns)
+        source.match_columns = selected_columns
+        views.render_workspace(self, self.scan_mode)
+
+    def set_reference_columns(
+        self,
+        source,
+        selected_columns: list[str],
+    ) -> None:
+        source.reference_columns = selected_columns
         views.render_workspace(self, self.scan_mode)
 
     def start_scan(self, mode: str) -> None:
         self.mode = mode
         self.scan_mode = mode
-        needed = (
-            [self.single]
-            if mode == "single"
-            else [self.truth, self.dependent]
-        )
-        if any(not source.rows or not source.match_columns for source in needed):
+        if not self._scan_inputs_ready(mode):
             QMessageBox.warning(
                 self,
                 "Choose input",
@@ -135,36 +137,43 @@ class AppActions:
             )
             return
 
-        if mode == "single":
-            work = lambda: find_single_file_groups(
-                self.single.rows,
-                self.single.match_columns,
-                self.rules,
-            )
-        else:
-            work = lambda: find_cross_file_groups(
-                self.truth.rows,
-                self.truth.match_columns,
-                self.dependent.rows,
-                self.dependent.match_columns,
-                self.rules,
-            )
         self._scan_progress = widgets.progress_dialog(
             self,
             "Finding likely duplicates…",
         )
-        worker = ScanWorker(work)
+        worker = ScanWorker(self._scan_work(mode))
         self._scan_worker = worker
         worker.signals.finished.connect(self._scan_finished)
         worker.signals.failed.connect(self._scan_failed)
         QThreadPool.globalInstance().start(worker)
+
+    def _scan_inputs_ready(self, mode: str) -> bool:
+        return all(
+            source.rows and source.match_columns
+            for source in self._sources_for_mode(mode)
+        )
+
+    def _scan_work(self, mode: str) -> Callable[[], list[MatchGroup]]:
+        if mode == "single":
+            return lambda: find_single_file_groups(
+                self.single.rows,
+                self.single.match_columns,
+                self.rules,
+            )
+        return lambda: find_cross_file_groups(
+            self.truth.rows,
+            self.truth.match_columns,
+            self.dependent.rows,
+            self.dependent.match_columns,
+            self.rules,
+        )
 
     @Slot(object)
     def _scan_finished(self, groups: list[MatchGroup]) -> None:
         self._close_scan_progress()
         self.groups = groups
         self.group_index = 0
-        self.decisions = {}
+        self.decisions = self._auto_accept_decisions(groups)
         if not groups:
             QMessageBox.information(
                 self,
@@ -172,7 +181,44 @@ class AppActions:
                 "No likely duplicates met the current review threshold.",
             )
             return
+        next_group = self._next_unresolved_group_index()
+        if next_group is None:
+            self.show_complete()
+            return
+        self.group_index = next_group
         self.show_review()
+
+    def _auto_accept_decisions(
+        self,
+        groups: list[MatchGroup],
+    ) -> dict[int, ReviewDecision]:
+        if not self.rules.auto_accept:
+            return {}
+        return {
+            index: self._auto_accept_decision(group)
+            for index, group in enumerate(groups)
+            if group.score >= self.rules.auto_accept_threshold
+        }
+
+    def _auto_accept_decision(self, group: MatchGroup) -> ReviewDecision:
+        selected = list(group.records)
+        edits = {ref: dict(self._row_for(ref)) for ref in selected}
+        return ReviewDecision(
+            action="auto_accept",
+            selected=selected,
+            canonical=self._canonical_from_rows(selected, edits),
+            edits=edits,
+        )
+
+    def _next_unresolved_group_index(self, start: int = 0) -> int | None:
+        return next(
+            (
+                index
+                for index in range(start, len(self.groups))
+                if index not in self.decisions
+            ),
+            None,
+        )
 
     @Slot(str)
     def _scan_failed(self, message: str) -> None:
@@ -200,7 +246,6 @@ class AppActions:
         group: MatchGroup,
         selected: list[RecordRef],
     ) -> dict[str, str]:
-        canonical: dict[str, str] = {}
         selected_refs = set(selected)
         preferred = next(
             (ref for ref in selected if ref.source == "truth"),
@@ -209,10 +254,7 @@ class AppActions:
         edited_rows = {
             ref: self._edited_row_from_ui(ref) for ref in selected
         }
-        for ref in selected:
-            for field, value in edited_rows[ref].items():
-                if field not in canonical or not canonical[field]:
-                    canonical[field] = value
+        canonical = self._canonical_from_rows(selected, edited_rows)
 
         for field, chosen in self.field_choices.items():
             if chosen not in selected_refs:
@@ -225,6 +267,18 @@ class AppActions:
                     preferred,
                 )
             canonical[field] = edited_rows[chosen].get(field, "")
+        return canonical
+
+    @staticmethod
+    def _canonical_from_rows(
+        selected: list[RecordRef],
+        rows: dict[RecordRef, dict[str, str]],
+    ) -> dict[str, str]:
+        canonical: dict[str, str] = {}
+        for ref in selected:
+            for field, value in rows[ref].items():
+                if field not in canonical or not canonical[field]:
+                    canonical[field] = value
         return canonical
 
     def resolve(self, action: str) -> None:
@@ -244,18 +298,19 @@ class AppActions:
         edits = {
             ref: self._edited_row_from_ui(ref) for ref in group.records
         }
-        self.decisions[self.group_index] = {
-            "action": action,
-            "selected": selected,
-            "canonical": (
+        self.decisions[self.group_index] = ReviewDecision(
+            action=action,
+            selected=selected,
+            canonical=(
                 self._canonical_from_ui(group, selected)
                 if action == "merge"
-                else None
+                else {}
             ),
-            "edits": edits,
-        }
-        if self.group_index + 1 < len(self.groups):
-            self.group_index += 1
+            edits=edits,
+        )
+        next_group = self._next_unresolved_group_index(self.group_index + 1)
+        if next_group is not None:
+            self.group_index = next_group
             self.show_review()
         else:
             self.show_complete()
@@ -314,12 +369,7 @@ class AppActions:
                 "Token weights must be numbers from 0 to 1, or use auto.",
             )
             return
-        needed = (
-            [self.single]
-            if self.scan_mode == "single"
-            else [self.truth, self.dependent]
-        )
-        if any(not source.rows or not source.match_columns for source in needed):
+        if not self._scan_inputs_ready(self.scan_mode):
             QMessageBox.warning(
                 self,
                 "Choose input",
@@ -334,11 +384,17 @@ class AppActions:
 
     def _store_rules(self) -> None:
         self.rules.review_threshold = self.review_input.value()
+        self.rules.auto_accept = self.auto_accept_input.isChecked()
+        self.rules.auto_accept_threshold = (
+            self.auto_accept_threshold_input.value()
+        )
         self.rules.common_token_min_documents = (
             self.common_token_min_documents_input.value()
         )
-        for attribute, control in self.norm_inputs.items():
-            setattr(self.rules, attribute, control.isChecked())
+        self.rules.lowercase = self.lowercase_input.isChecked()
+        self.rules.remove_punctuation = (
+            self.remove_punctuation_input.isChecked()
+        )
 
     def save_rules(self) -> None:
         self._store_rules()
